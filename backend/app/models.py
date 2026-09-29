@@ -38,6 +38,7 @@ class Product(Base):
     unit = Column(String, default="piece")
     min_stock_level = Column(Integer, default=5)
     price_per_unit = Column(Float, nullable=True)
+    image_url = Column(String, nullable=True)
 
     batches = relationship("Batch", back_populates="product")
 

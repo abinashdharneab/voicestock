@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
+<title>VoiceStock</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+
+  @property --angle {
+    syntax: '<angle>';
+    initial-value: 0deg;
+    inherits: false;
+  }
+
+  :root{
+    --bg-deep:#070d1a;
+    --line-blue:#3fa9ff;
+    --line-purple:#9b6bff;
+    --line-pink:#ff5fae;
+    --text-primary:#eef4ff;
+    --text-muted:#7e97bd;
+    --stop-a:#6b4326; --stop-b:#33200f;
+    --resume-a:#2f6fe0; --resume-b:#123a7a;
+    --convo-a:#8b5cf6; --convo-b:#3a2470;
+    --nav-active:#3fa9ff;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;min-width:0;}
+  html,body{height:100%;width:100%;max-width:100%;overflow-x:hidden;}
+  body{
+    font-family:'Inter',system-ui,sans-serif;
+    background:var(--bg-deep);
+    color:var(--text-primary);
+    min-height:100dvh;
+    display:flex;flex-direction:column;align-items:center;
+    position:relative;
+  }
+  .heading{font-family:'Poppins',system-ui,sans-serif;}
+
+  .waves{position:fixed;left:0;right:0;pointer-events:none;z-index:0;opacity:0.45;overflow:hidden;}
+  .waves.top{top:0;height:18vh;}
+  .waves.bottom{bottom:0;height:14vh;}
+  .waves svg{width:100%;height:100%;display:block;}
+
+  .app{width:100%;max-width:270px;overflow-x:hidden;display:flex;flex-direction:column;flex:1;position:relative;z-index:1;padding:8px 8px calc(46px + env(safe-area-inset-bottom,0px));}
+
+  header{display:flex;align-items:center;justify-content:space-between;gap:5px;margin-bottom:2px;}
+  .brand{display:flex;align-items:center;gap:5px;min-width:0;flex:1;}
+  .brand-icon{
+    width:17px;height:17px;border-radius:5px;flex-shrink:0;
+    background:linear-gradient(135deg,var(--line-purple),var(--resume-a));
+    display:flex;align-items:center;justify-content:center;font-size:0.5rem;
+  }
+  .brand-text{min-width:0;flex:1;overflow:hidden;}
+  .brand-text h1{
+    font-size:0.62rem;font-weight:700;letter-spacing:-0.1px;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  }
+  .brand-text h1 .voice{color:#fff;} .brand-text h1 .stock{color:var(--line-blue);}
+  .brand-text p{font-size:0.4rem;color:var(--text-muted);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .gear{
+    width:17px;height:17px;border-radius:50%;background:#101f38;border:1px solid #223454;
+    display:flex;align-items:center;justify-content:center;flex-shrink:0;color:var(--text-muted);font-size:0.48rem;
+  }
+
+  .hero{display:flex;flex-direction:column;align-items:center;text-align:center;margin:10px 0 8px;}
+
+  .wave{display:flex;align-items:center;justify-content:center;gap:2px;height:22px;flex-shrink:0;margin-bottom:8px;}
+  .wave span{
+    width:2px;border-radius:2px;background:linear-gradient(180deg,var(--line-blue),var(--line-purple),var(--line-pink));
+    height:5px;opacity:0.55;
+  }
+  .wave.active span{animation:bar 1s ease-in-out infinite;opacity:1;}
+  .wave span:nth-child(1){animation-delay:0s;} .wave span:nth-child(2){animation-delay:.1s;}
+  .wave span:nth-child(3){animation-delay:.2s;} .wave span:nth-child(4){animation-delay:.3s;}
+  .wave span:nth-child(5){animation-delay:.15s;} .wave span:nth-child(6){animation-delay:.25s;}
+  .wave span:nth-child(7){animation-delay:.05s;}
+  @keyframes bar{0%,100%{height:5px;}50%{height:20px;}}
+
+  .hero h2{font-size:0.65rem;font-weight:700;margin-bottom:3px;}
+  .hero .status-line{font-size:0.5rem;color:var(--line-blue);max-width:190px;line-height:1.3;min-height:1em;}
+
+  .list{display:flex;flex-direction:column;gap:4px;}
+  .row{
+    display:flex;align-items:center;gap:6px;
+    padding:6px 8px;border-radius:9px;cursor:pointer;
+    border:1px solid rgba(255,255,255,0.06);
+    transition:opacity .15s, transform .1s;
+  }
+  .row:active{transform:scale(0.99);}
+  .row.disabled{opacity:0.4;cursor:not-allowed;pointer-events:none;}
+  .row.stop{background:linear-gradient(135deg,var(--stop-a),var(--stop-b));}
+  .row.resume{background:linear-gradient(135deg,var(--resume-a),var(--resume-b));}
+  .row.convo{background:linear-gradient(135deg,var(--convo-a),var(--convo-b));}
+  .row-icon{
+    width:18px;height:18px;border-radius:50%;flex-shrink:0;
+    background:rgba(255,255,255,0.14);
+    display:flex;align-items:center;justify-content:center;font-size:0.52rem;
+  }
+  .row-text{flex:1;min-width:0;}
+  .row-text .title{font-weight:600;font-size:0.56rem;}
+  .row-text .sub{font-size:0.44rem;color:rgba(234,241,255,0.75);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .chevron{flex-shrink:0;color:rgba(255,255,255,0.65);transition:transform .2s;font-size:0.58rem;}
+  .row.open .chevron{transform:rotate(90deg);}
+
+  .panel{
+    max-height:0;overflow:hidden;transition:max-height .25s ease;
+    background:#0b1830;border-radius:9px;margin-top:-2px;
+  }
+  .panel.open{max-height:150px;overflow-y:auto;-webkit-overflow-scrolling:touch;}
+  .panel-inner{padding:6px 6px 2px;}
+  .bubble{
+    padding:5px 7px;border-radius:8px;margin-bottom:5px;
+    font-size:0.52rem;line-height:1.3;max-width:88%;word-wrap:break-word;
+  }
+  .bubble.user{background:#1c3a5e;margin-left:auto;border-bottom-right-radius:2px;}
+  .bubble.assistant{background:#241a3d;border:1px solid #3a2a63;border-bottom-left-radius:2px;}
+  .empty-note{color:var(--text-muted);font-size:0.48rem;text-align:center;padding:7px 0;}
+
+  .tagline{
+    text-align:center;font-size:0.4rem;letter-spacing:1.5px;color:var(--text-muted);
+    margin-top:10px;font-weight:500;
+  }
+
+  /* ---------- STOCKS TAB ---------- */
+  .view-title{font-size:0.68rem;font-weight:700;margin:4px 0 8px;text-align:center;}
+  .stock-status{font-size:0.44rem;color:var(--text-muted);text-align:center;min-height:1em;margin-bottom:6px;}
+  .stock-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;}
+  .stock-card{
+    background:#101c34;border:1px solid rgba(255,255,255,0.06);border-radius:9px;
+    padding:6px;display:flex;flex-direction:column;align-items:center;text-align:center;
+  }
+  .stock-card .photo{
+    width:100%;height:56px;object-fit:contain;background:#fff;border-radius:6px;margin-bottom:5px;
+  }
+  .stock-card .nophoto{
+    width:100%;height:56px;display:flex;align-items:center;justify-content:center;
+    background:#182642;border-radius:6px;margin-bottom:5px;color:var(--text-muted);font-size:0.4rem;
+  }
+  .stock-card .s-name{font-size:0.5rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;}
+  .stock-card .s-qty{font-size:0.42rem;color:var(--text-muted);margin:1px 0 5px;}
+  .stock-card .s-qty.low{color:#ff6b6b;}
+  .s-upload{
+    font-size:0.4rem;background:#1d2c4d;color:var(--line-blue);
+    padding:4px 6px;border-radius:6px;cursor:pointer;width:100%;
+  }
+  .s-upload input{display:none;}
+  .empty-stock{grid-column:1/-1;color:var(--text-muted);font-size:0.5rem;text-align:center;padding:14px 0;}
+
+  /* ---------- NAVBAR (slim, edge-to-edge, with travelling blue light) ---------- */
+  .navbar{
+    position:fixed;left:0;right:0;bottom:0;
+    width:100%;max-width:none;transform:none;
+    background:#0c1a30;
+    border:none;
+    box-shadow:inset 0 1px 0 #1c2f4d, 0 -3px 16px rgba(63,169,255,0.10);
+    border-radius:12px 12px 0 0;
+    display:flex;justify-content:space-around;align-items:center;
+    padding:4px 6px calc(4px + env(safe-area-inset-bottom,0px));
+    z-index:2;
+  }
+  .navbar::before{
+    content:"";
+    position:absolute;inset:0;
+    border-radius:inherit;
+    padding:1.5px;
+    background:conic-gradient(
+      from var(--angle),
+      transparent 0deg,
+      transparent 230deg,
+      rgba(63,169,255,0.25) 270deg,
+      #3fa9ff 320deg,
+      #b9e2ff 345deg,
+      transparent 360deg
+    );
+    -webkit-mask:linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite:xor;
+    mask:linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+    mask-composite:exclude;
+    animation:travel 4s linear infinite;
+    pointer-events:none;
+  }
+  @keyframes travel{ to { --angle:360deg; } }
+
+  .nav-item{
+    display:flex;flex-direction:column;align-items:center;gap:0;
+    color:var(--text-muted);font-size:0.46rem;opacity:0.55;flex:1;line-height:1.2;
+    background:none;border:none;font-family:inherit;
+  }
+  .nav-item span{font-size:0.68rem;}
+  .nav-item.active{color:var(--nav-active);opacity:1;}
+  .nav-item .nav-underline{width:8px;height:1.5px;border-radius:2px;background:transparent;margin-top:1px;}
+  .nav-item.active .nav-underline{background:var(--nav-active);}
+</style>
+</head>
+<body>
+
+<div class="waves top">
+  <svg viewBox="0 0 400 300" preserveAspectRatio="none">
+    <path d="M0,60 C80,20 140,90 220,60 C300,30 340,80 400,50" fill="none" stroke="#3fa9ff" stroke-width="2" opacity="0.5"/>
+    <path d="M0,110 C90,70 150,140 240,100 C310,70 350,120 400,95" fill="none" stroke="#9b6bff" stroke-width="1.5" opacity="0.4"/>
+  </svg>
+</div>
+<div class="waves bottom">
+  <svg viewBox="0 0 400 200" preserveAspectRatio="none">
+    <path d="M0,120 C80,160 140,90 220,130 C300,170 340,110 400,140" fill="none" stroke="#9b6bff" stroke-width="2" opacity="0.5"/>
+    <path d="M0,150 C90,190 150,120 240,160 C310,190 350,140 400,165" fill="none" stroke="#3fa9ff" stroke-width="1.5" opacity="0.4"/>
+  </svg>
+</div>
+
+<div class="app">
+  <header>
+    <div class="brand">
+      <div class="brand-icon">🎙️</div>
+      <div class="brand-text">
+        <h1><span class="voice">Voice</span><span class="stock">Stock</span></h1>
+        <p>Your Voice. Your Stocks.</p>
+      </div>
+    </div>
+    <div class="gear" title="Settings">⚙️</div>
+  </header>
+
+  <!-- ---------------- HOME VIEW ---------------- -->
+  <div id="homeView">
+    <div class="hero">
+      <div class="wave" id="wave">
+        <span></span><span></span><span></span><span></span><span></span><span></span><span></span>
+      </div>
+      <h2 class="heading">Hey there!</h2>
+      <p class="status-line" id="statusLine">Check stock, expiry or sales — just speak!</p>
+    </div>
+
+    <div class="list">
+      <div>
+        <div class="row stop" id="stopRow">
+          <div class="row-icon">⏹️</div>
+          <div class="row-text"><div class="title">Stop</div><div class="sub">End the listening mode</div></div>
+          <div class="chevron">›</div>
+        </div>
+      </div>
+      <div>
+        <div class="row resume disabled" id="resumeRow">
+          <div class="row-icon">▶️</div>
+          <div class="row-text"><div class="title">Resume</div><div class="sub">Continue listening</div></div>
+          <div class="chevron">›</div>
+        </div>
+      </div>
+      <div>
+        <div class="row convo" id="convoRow">
+          <div class="row-icon">💬</div>
+          <div class="row-text"><div class="title">Conversation</div><div class="sub">Talk &amp; get stock info</div></div>
+          <div class="chevron" id="convoChevron">›</div>
+        </div>
+        <div class="panel" id="convoPanel">
+          <div class="panel-inner" id="transcript">
+            <div class="empty-note">Nothing said yet — start talking and it'll show up here.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <p class="tagline">SMART • FAST • EASY</p>
+  </div>
+
+  <!-- ---------------- STOCKS VIEW ---------------- -->
+  <div id="stocksView" style="display:none;">
+    <h2 class="view-title heading">Inventory</h2>
+    <div class="stock-status" id="stockStatus"></div>
+    <div class="stock-grid" id="stockGrid"></div>
+  </div>
+
+  <!-- ---------------- HISTORY VIEW (placeholder) ---------------- -->
+  <div id="historyView" style="display:none;">
+    <h2 class="view-title heading">History</h2>
+    <p class="empty-note">Sales history coming soon.</p>
+  </div>
+
+  <!-- ---------------- PROFILE VIEW (placeholder) ---------------- -->
+  <div id="profileView" style="display:none;">
+    <h2 class="view-title heading">Profile</h2>
+    <p class="empty-note">Profile settings coming soon.</p>
+  </div>
+</div>
+
+<div class="navbar">
+  <button class="nav-item active" data-view="home"><span>🏠</span>Home<div class="nav-underline"></div></button>
+  <button class="nav-item" data-view="stocks"><span>📊</span>Stocks<div class="nav-underline"></div></button>
+  <button class="nav-item" data-view="history"><span>🕐</span>History<div class="nav-underline"></div></button>
+  <button class="nav-item" data-view="profile"><span>👤</span>Profile<div class="nav-underline"></div></button>
+</div>
+
+<script>
+let ws, audioContext, processor, source, stream;
+let playbackContext, nextStartTime = 0;
+let manuallyStopped = false;
+let reconnectTimer = null;
+let hasTranscript = false;
+
+const wave = document.getElementById("wave");
+const statusLine = document.getElementById("statusLine");
+const transcriptEl = document.getElementById("transcript");
+const stopRow = document.getElementById("stopRow");
+const resumeRow = document.getElementById("resumeRow");
+const convoRow = document.getElementById("convoRow");
+const convoPanel = document.getElementById("convoPanel");
+const convoChevron = document.getElementById("convoChevron");
+
+function setStatus(state, text) {
+  statusLine.innerText = text;
+  wave.classList.toggle("active", state === "connected");
+  stopRow.classList.toggle("disabled", state !== "connected");
+  resumeRow.classList.toggle("disabled", state === "connected");
+}
+
+function addBubble(role, text) {
+  if (!hasTranscript) { transcriptEl.innerHTML = ""; hasTranscript = true; }
+  const div = document.createElement("div");
+  div.className = "bubble " + (role === "assistant" ? "assistant" : "user");
+  div.innerText = text;
+  transcriptEl.appendChild(div);
+  transcriptEl.scrollTop = transcriptEl.scrollHeight;
+}
+
+convoRow.onclick = () => {
+  const isOpen = convoPanel.classList.toggle("open");
+  convoRow.classList.toggle("open", isOpen);
+  convoChevron.innerText = isOpen ? "⌄" : "›";
+};
+
+async function ensureMic() {
+  if (!stream) stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  if (!audioContext) {
+    audioContext = new AudioContext({ sampleRate: 16000 });
+    source = audioContext.createMediaStreamSource(stream);
+    processor = audioContext.createScriptProcessor(4096, 1, 1);
+    source.connect(processor);
+    processor.connect(audioContext.destination);
+    processor.onaudioprocess = (e) => {
+      const input = e.inputBuffer.getChannelData(0);
+      const pcm16 = new Int16Array(input.length);
+      for (let i = 0; i < input.length; i++) {
+        pcm16[i] = Math.max(-1, Math.min(1, input[i])) * 0x7FFF;
+      }
+      if (ws && ws.readyState === WebSocket.OPEN) ws.send(pcm16.buffer);
+    };
+  }
+  if (!playbackContext) {
+    playbackContext = new AudioContext({ sampleRate: 24000 });
+    nextStartTime = playbackContext.currentTime;
+  }
+  if (audioContext.state === "suspended") await audioContext.resume();
+  if (playbackContext.state === "suspended") await playbackContext.resume();
+}
+
+async function connect() {
+  clearTimeout(reconnectTimer);
+  manuallyStopped = false;
+  setStatus("connecting", "Connecting…");
+  await ensureMic();
+
+  ws = new WebSocket(`ws://${window.location.host}/ws/voice`);
+  ws.binaryType = "arraybuffer";
+
+  ws.onopen = () => setStatus("connected", "Listening — speak anytime!");
+
+  ws.onmessage = async (event) => {
+    if (typeof event.data === "string") {
+      const msg = JSON.parse(event.data);
+      if (msg.type === "transcript" && msg.text && msg.text.trim()) {
+        addBubble(msg.role, msg.text);
+      }
+    } else {
+      if (!playbackContext) return;
+      const int16Array = new Int16Array(event.data);
+      const float32Array = new Float32Array(int16Array.length);
+      for (let i = 0; i < int16Array.length; i++) float32Array[i] = int16Array[i] / 32768.0;
+      const audioBuffer = playbackContext.createBuffer(1, float32Array.length, 24000);
+      audioBuffer.getChannelData(0).set(float32Array);
+      const sourceNode = playbackContext.createBufferSource();
+      sourceNode.buffer = audioBuffer;
+      sourceNode.playbackRate.value = 0.86;
+      sourceNode.connect(playbackContext.destination);
+      if (nextStartTime < playbackContext.currentTime) nextStartTime = playbackContext.currentTime + 0.05;
+      sourceNode.start(nextStartTime);
+      nextStartTime += (audioBuffer.duration / 0.86);
+    }
+  };
+
+  ws.onclose = () => {
+    if (manuallyStopped) { setStatus("stopped", "Stopped — tap Resume to continue"); return; }
+    setStatus("connecting", "Reconnecting…");
+    reconnectTimer = setTimeout(connect, 800);
+  };
+
+  ws.onerror = () => ws.close();
+}
+
+stopRow.onclick = () => {
+  if (stopRow.classList.contains("disabled")) return;
+  manuallyStopped = true;
+  clearTimeout(reconnectTimer);
+  if (ws) ws.close();
+  setStatus("stopped", "Stopped — tap Resume to continue");
+};
+
+resumeRow.onclick = () => {
+  if (resumeRow.classList.contains("disabled")) return;
+  connect();
+};
+
+window.addEventListener("load", connect);
+
+/* ---------------- TAB SWITCHING ---------------- */
+const views = { home: "homeView", stocks: "stocksView", history: "historyView", profile: "profileView" };
+let stockPoll = null;
+
+document.querySelectorAll(".nav-item").forEach(btn => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll(".nav-item").forEach(b => b.classList.remove("active"));
+    btn.classList.add("active");
+    Object.values(views).forEach(id => document.getElementById(id).style.display = "none");
+    const target = btn.dataset.view;
+    document.getElementById(views[target]).style.display = "block";
+
+    clearInterval(stockPoll);
+    if (target === "stocks") {
+      loadStocks();
+      stockPoll = setInterval(loadStocks, 15000);
+    }
+  });
+});
+
+async function loadStocks() {
+  const statusEl = document.getElementById("stockStatus");
+  const grid = document.getElementById("stockGrid");
+  try {
+    const res = await fetch("/products");
+    const products = await res.json();
+    grid.innerHTML = "";
+    if (!products.length) {
+      grid.innerHTML = '<div class="empty-stock">No products yet — add one by voice.</div>';
+      return;
+    }
+    for (const p of products) {
+      const qty = (p.batches || []).reduce((s, b) => s + b.quantity, 0);
+      const low = qty < (p.min_stock_level ?? 0);
+      const card = document.createElement("div");
+      card.className = "stock-card";
+      card.innerHTML = `
+        ${p.image_url
+          ? `<img class="photo" src="${p.image_url}" alt="${p.name}">`
+          : `<div class="nophoto">No photo</div>`}
+        <div class="s-name">${p.name}</div>
+        <div class="s-qty ${low ? 'low' : ''}">${qty} ${p.unit || ''}${low ? ' • low' : ''}</div>
+        <label class="s-upload">
+          ${p.image_url ? 'Change photo' : 'Add photo'}
+          <input type="file" accept="image/*" data-id="${p.id}">
+        </label>
+      `;
+      grid.appendChild(card);
+    }
+    grid.querySelectorAll("input[type=file]").forEach(inp => {
+      inp.addEventListener("change", async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const id = e.target.dataset.id;
+        const fd = new FormData();
+        fd.append("file", file);
+        statusEl.innerText = "Uploading…";
+        const r = await fetch(`/products/${id}/image`, { method: "POST", body: fd });
+        statusEl.innerText = r.ok ? "Photo saved." : "Upload failed.";
+        if (r.ok) loadStocks();
+      });
+    });
+  } catch (err) {
+    statusEl.innerText = "Could not load inventory.";
+  }
+}
+</script>
+</body>
+</html>
