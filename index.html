@@ -360,8 +360,9 @@ async function connect() {
   setStatus("connecting", "Connecting…");
   await ensureMic();
 
-  const BACKEND_HOST = "100.60.66.56:8000"; // EC2 backend — update if IP/domain changes
-  ws = new WebSocket(`ws://${BACKEND_HOST}/ws/voice`);
+  const BACKEND_HOST = "100.60.66.56:8000";
+ws = new WebSocket(`ws://${BACKEND_HOST}/ws/voice`);
+
   ws.binaryType = "arraybuffer";
 
   ws.onopen = () => setStatus("connected", "Listening — speak anytime!");
