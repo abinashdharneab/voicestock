@@ -360,9 +360,8 @@ async function connect() {
   setStatus("connecting", "Connecting…");
   await ensureMic();
 
-  const BACKEND_HOST = "100.60.66.56:8000";
-ws = new WebSocket(`ws://${BACKEND_HOST}/ws/voice`);
-
+  const BACKEND_HOST = "voicestock-abinash.duckdns.org"; // live HTTPS backend
+  ws = new WebSocket(`wss://${BACKEND_HOST}/ws/voice`);
   ws.binaryType = "arraybuffer";
 
   ws.onopen = () => setStatus("connected", "Listening — speak anytime!");
@@ -438,7 +437,7 @@ async function loadStocks() {
   const statusEl = document.getElementById("stockStatus");
   const grid = document.getElementById("stockGrid");
   try {
-    const res = await fetch(`http://${BACKEND_HOST}/products`);
+    const res = await fetch(`https://${BACKEND_HOST}/products`);
     const products = await res.json();
     grid.innerHTML = "";
     if (!products.length) {
@@ -471,7 +470,7 @@ async function loadStocks() {
         const fd = new FormData();
         fd.append("file", file);
         statusEl.innerText = "Uploading…";
-        const r = await fetch(`http://${BACKEND_HOST}/products/${id}/image`, { method: "POST", body: fd });
+        const r = await fetch(`https://${BACKEND_HOST}/products/${id}/image`, { method: "POST", body: fd });
         statusEl.innerText = r.ok ? "Photo saved." : "Upload failed.";
         if (r.ok) loadStocks();
       });
