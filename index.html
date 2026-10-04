@@ -4,8 +4,16 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
 <title>VoiceStock</title>
+<script>
+try{var __i=localStorage.getItem("account_id"),__a=(JSON.parse(localStorage.getItem("vs_prefs_"+__i)||"{}").appearance)||{},
+__m={blue:["#4fa8ff","#2e8aef"],purple:["#9b6bff","#7a4ee0"],teal:["#22c7b8","#12a89a"],orange:["#ff9f43","#f08522"],pink:["#ff5fae","#e8438f"]},
+__c=__m[__a.accent]||__m.blue,__r=document.documentElement;
+__r.dataset.theme=__a.theme==="light"?"light":"dark";__r.dataset.density=__a.density==="compact"?"compact":"comfortable";
+__r.style.setProperty("--accent",__c[0]);__r.style.setProperty("--accent-strong",__c[1]);
+var __n=parseInt(__c[0].slice(1),16);__r.style.setProperty("--accent-dim","rgba("+((__n>>16)&255)+","+((__n>>8)&255)+","+(__n&255)+",0.13)");}catch(e){}
+</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
   html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 
@@ -16,150 +24,593 @@
   }
 
   :root{
-    --bg-deep:#070d1a;
-    --line-blue:#3fa9ff;
-    --line-purple:#9b6bff;
-    --line-pink:#ff5fae;
-    --text-primary:#eef4ff;
-    --text-muted:#7e97bd;
-    --stop-a:#6b4326; --stop-b:#33200f;
-    --resume-a:#2f6fe0; --resume-b:#123a7a;
-    --convo-a:#8b5cf6; --convo-b:#3a2470;
-    --nav-active:#3fa9ff;
+    /* ---- surface & text ---- */
+    --bg:#070a12;
+    --surface:#0d1420;
+    --surface-2:#111b2e;
+    --surface-3:#162136;
+    --border:rgba(255,255,255,0.07);
+    --border-strong:rgba(255,255,255,0.14);
+    --text:#eef2fb;
+    --text-dim:#97a5c2;
+    --text-faint:#64718c;
+
+    /* ---- accent ---- */
+    --accent:#4fa8ff;
+    --accent-dim:rgba(79,168,255,0.13);
+    --accent-strong:#2e8aef;
+    --purple:#9b6bff;
+    --pink:#ff5fae;
+
+    /* ---- status ---- */
+    --success:#34d399;
+    --success-dim:rgba(52,211,153,0.13);
+    --warning:#f4b740;
+    --warning-dim:rgba(244,183,64,0.13);
+    --danger:#f1685f;
+    --danger-dim:rgba(241,104,95,0.13);
+
+    /* ---- radius / spacing ---- */
+    --r-lg:16px; --r-md:11px; --r-sm:8px; --r-xs:6px;
+    --sp-1:4px; --sp-2:8px; --sp-3:12px; --sp-4:16px; --sp-5:20px; --sp-6:24px;
+
+    /* ---- type ---- */
+    --fs-2xs:10.5px; --fs-xs:11.5px; --fs-sm:12.5px; --fs-base:13.5px;
+    --fs-md:15px; --fs-lg:17px; --fs-xl:19px;
   }
   *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;min-width:0;}
   html,body{height:100%;width:100%;max-width:100%;overflow-x:hidden;}
   body{
     font-family:'Inter',system-ui,sans-serif;
-    background:var(--bg-deep);
-    color:var(--text-primary);
+    background:var(--bg);
+    color:var(--text);
     min-height:100dvh;
     display:flex;flex-direction:column;align-items:center;
     position:relative;
+    font-size:var(--fs-base);
+    line-height:1.4;
   }
   .heading{font-family:'Poppins',system-ui,sans-serif;}
+  button{font-family:inherit;}
+  svg{display:block;}
+  .ic{width:1em;height:1em;stroke:currentColor;stroke-width:1.9;fill:none;stroke-linecap:round;stroke-linejoin:round;}
 
-  .waves{position:fixed;left:0;right:0;pointer-events:none;z-index:0;opacity:0.45;overflow:hidden;}
-  .waves.top{top:0;height:18vh;}
-  .waves.bottom{bottom:0;height:14vh;}
+  .waves{position:fixed;left:0;right:0;pointer-events:none;z-index:0;opacity:0.22;overflow:hidden;}
+  .waves.top{top:0;height:16vh;}
+  .waves.bottom{bottom:0;height:12vh;}
   .waves svg{width:100%;height:100%;display:block;}
 
-  .app{width:100%;max-width:270px;overflow-x:hidden;display:flex;flex-direction:column;flex:1;position:relative;z-index:1;padding:8px 8px calc(46px + env(safe-area-inset-bottom,0px));}
+  .shell{width:100%;display:flex;flex-direction:column;align-items:center;flex:1;position:relative;z-index:1;}
 
-  header{display:flex;align-items:center;justify-content:space-between;gap:5px;margin-bottom:2px;}
-  .brand{display:flex;align-items:center;gap:5px;min-width:0;flex:1;}
+  .app{
+    width:100%;max-width:420px;overflow-x:hidden;display:flex;flex-direction:column;flex:1;
+    position:relative;z-index:1;
+    padding:14px 16px calc(60px + env(safe-area-inset-bottom,0px));
+  }
+
+  /* ---- tablet: phone-card look, still bottom nav ---- */
+  @media (min-width:640px) and (max-width:899px){
+    body{padding:32px 16px;}
+    .app{
+      max-width:400px;
+      border:1px solid var(--border);
+      border-radius:22px;
+      background:var(--surface);
+      box-shadow:0 24px 60px rgba(0,0,0,0.5);
+      min-height:min(820px, calc(100dvh - 64px));
+    }
+  }
+
+  /* ---- desktop: full-bleed dashboard — sidebar fixed left, content fills the rest ---- */
+  @media (min-width:900px){
+    html,body{overflow-x:hidden;}
+    body{display:block;padding:0;}
+    .shell{display:block;max-width:none;width:100%;overflow-x:hidden;}
+    header{display:none !important;}
+    .app{
+      width:calc(100% - 250px);max-width:none;
+      margin:0 0 0 250px;
+      padding:26px 34px 40px;
+      border:none;border-radius:0;background:transparent;box-shadow:none;
+      min-height:100vh;overflow-x:hidden;
+    }
+    #stocksView,#historyView,#profileView{max-width:1100px;}
+    .home-desktop{max-width:1640px;}
+  }
+
+  /* ---------------- HEADER ---------------- */
+  header{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:4px;}
+  .brand{display:flex;align-items:center;gap:8px;min-width:0;flex:1;}
   .brand-icon{
-    width:17px;height:17px;border-radius:5px;flex-shrink:0;
-    background:linear-gradient(135deg,var(--line-purple),var(--resume-a));
-    display:flex;align-items:center;justify-content:center;font-size:0.5rem;
+    width:28px;height:28px;border-radius:9px;flex-shrink:0;
+    background:linear-gradient(135deg,var(--purple),var(--accent-strong));
+    display:flex;align-items:center;justify-content:center;font-size:13px;
   }
   .brand-text{min-width:0;flex:1;overflow:hidden;}
   .brand-text h1{
-    font-size:0.62rem;font-weight:700;letter-spacing:-0.1px;
+    font-size:var(--fs-md);font-weight:700;letter-spacing:-0.1px;
     white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
   }
-  .brand-text h1 .voice{color:#fff;} .brand-text h1 .stock{color:var(--line-blue);}
-  .brand-text p{font-size:0.4rem;color:var(--text-muted);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .brand-text h1 .voice{color:#fff;} .brand-text h1 .stock{color:var(--accent);}
+  .brand-text p{font-size:var(--fs-2xs);color:var(--text-faint);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
   .gear{
-    width:17px;height:17px;border-radius:50%;background:#101f38;border:1px solid #223454;
-    display:flex;align-items:center;justify-content:center;flex-shrink:0;color:var(--text-muted);font-size:0.48rem;
+    width:28px;height:28px;border-radius:50%;background:var(--surface-2);border:1px solid var(--border);
+    display:flex;align-items:center;justify-content:center;flex-shrink:0;color:var(--text-dim);font-size:13px;
+    transition:background .15s;
   }
+  .gear:active{background:var(--surface-3);}
 
-  .hero{display:flex;flex-direction:column;align-items:center;text-align:center;margin:10px 0 8px;}
+  /* ---------------- HOME: hero ---------------- */
+  .hero{display:flex;flex-direction:column;align-items:center;text-align:center;margin:14px 0 12px;}
 
-  .wave{display:flex;align-items:center;justify-content:center;gap:2px;height:22px;flex-shrink:0;margin-bottom:8px;}
+  .wave{display:flex;align-items:center;justify-content:center;gap:3px;height:26px;flex-shrink:0;margin-bottom:10px;}
   .wave span{
-    width:2px;border-radius:2px;background:linear-gradient(180deg,var(--line-blue),var(--line-purple),var(--line-pink));
-    height:5px;opacity:0.55;
+    width:3px;border-radius:2px;background:linear-gradient(180deg,var(--accent),var(--purple),var(--pink));
+    height:6px;opacity:0.5;
   }
   .wave.active span{animation:bar 1s ease-in-out infinite;opacity:1;}
   .wave span:nth-child(1){animation-delay:0s;} .wave span:nth-child(2){animation-delay:.1s;}
   .wave span:nth-child(3){animation-delay:.2s;} .wave span:nth-child(4){animation-delay:.3s;}
   .wave span:nth-child(5){animation-delay:.15s;} .wave span:nth-child(6){animation-delay:.25s;}
   .wave span:nth-child(7){animation-delay:.05s;}
-  @keyframes bar{0%,100%{height:5px;}50%{height:20px;}}
+  @keyframes bar{0%,100%{height:6px;}50%{height:22px;}}
 
-  .hero h2{font-size:0.65rem;font-weight:700;margin-bottom:3px;}
-  .hero .status-line{font-size:0.5rem;color:var(--line-blue);max-width:190px;line-height:1.3;min-height:1em;}
+  .hero h2{font-size:var(--fs-lg);font-weight:700;margin-bottom:4px;}
+  .hero .status-line{font-size:var(--fs-xs);color:var(--accent);max-width:260px;line-height:1.35;min-height:1.2em;}
 
-  .list{display:flex;flex-direction:column;gap:4px;}
+  /* ---------------- HOME: desktop dashboard ---------------- */
+  .home-desktop{display:none;}
+  @media (min-width:900px){
+    .home-mobile{display:none !important;}
+    .home-desktop{display:block;}
+  }
+
+  .dash-top{display:flex;align-items:flex-start;justify-content:space-between;gap:20px;margin-bottom:18px;}
+  .dash-greet{font-size:27px;font-weight:700;letter-spacing:-0.3px;margin-bottom:5px;}
+  .dash-greet .nm{color:var(--accent);}
+  .dash-sub{font-size:var(--fs-md);color:var(--text-dim);max-width:560px;line-height:1.5;}
+  .dash-tools{display:flex;align-items:center;gap:12px;flex-shrink:0;}
+  .dash-status-pill{
+    display:flex;align-items:center;gap:9px;height:38px;padding:0 16px;border-radius:999px;white-space:nowrap;
+    background:rgba(46,138,239,0.12);border:1px solid rgba(79,168,255,0.28);
+    font-size:var(--fs-sm);font-weight:600;color:var(--text);
+  }
+  .dash-status-pill .dot{width:9px;height:9px;border-radius:50%;background:var(--accent-strong);flex-shrink:0;}
+  .dash-status-pill.on .dot{background:var(--success);box-shadow:0 0 0 4px var(--success-dim);}
+  .icon-btn{
+    position:relative;width:38px;height:38px;border-radius:50%;flex-shrink:0;cursor:pointer;
+    background:rgba(255,255,255,0.03);border:1px solid rgba(120,150,230,0.2);color:var(--text);
+    display:flex;align-items:center;justify-content:center;
+  }
+  .icon-btn .ic{width:17px;height:17px;}
+  .icon-btn:hover{background:rgba(255,255,255,0.07);}
+  .icon-btn.has-dot::after{content:"";position:absolute;top:7px;right:9px;width:8px;height:8px;border-radius:50%;background:#ff4d4f;border:2px solid var(--bg);}
+  .dash-user{display:flex;align-items:center;gap:10px;margin-left:4px;}
+  .dash-avatar{
+    width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+    background:linear-gradient(135deg,#7b5bf5,#2e8aef);font-weight:700;font-size:15px;color:#fff;
+  }
+  .dash-user .n{font-size:var(--fs-sm);font-weight:600;line-height:1.2;}
+  .dash-user .r{font-size:var(--fs-2xs);color:var(--text-faint);}
+
+  .dash-hero{
+    position:relative;display:flex;align-items:center;gap:34px;
+    padding:22px 26px 22px 34px;margin-bottom:28px;overflow:hidden;
+    border-radius:14px;border:1px solid rgba(100,130,255,0.24);
+    background:radial-gradient(520px 220px at 6% 50%,rgba(70,90,255,0.18),transparent 70%),linear-gradient(135deg,#0b1429,#0a1020);
+  }
+  .dash-mic{
+    position:relative;width:104px;height:104px;border-radius:50%;flex-shrink:0;cursor:pointer;border:none;margin:14px 16px 14px 14px;
+    background:radial-gradient(circle at 50% 38%,#0e1a3d,#080f22);color:#fff;
+    display:flex;align-items:center;justify-content:center;
+    box-shadow:0 0 0 14px rgba(80,100,255,0.07),0 0 0 28px rgba(80,100,255,0.035),0 0 44px rgba(90,110,255,0.35);
+    transition:box-shadow .25s;
+  }
+  .dash-mic::before{
+    content:"";position:absolute;inset:0;border-radius:50%;padding:5px;
+    background:conic-gradient(from 210deg,#2e8aef,#9b6bff,#4fa8ff,#2e8aef);
+    -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;
+    mask:linear-gradient(#000 0 0) content-box exclude,linear-gradient(#000 0 0);mask-composite:exclude;
+  }
+  .dash-mic .ic{width:38px;height:38px;stroke-width:1.7;}
+  .dash-mic.listening{animation:micpulse 1.8s ease-in-out infinite;}
+  @keyframes micpulse{
+    0%,100%{box-shadow:0 0 0 14px rgba(80,100,255,0.10),0 0 0 28px rgba(80,100,255,0.05),0 0 50px rgba(90,110,255,0.45);}
+    50%{box-shadow:0 0 0 20px rgba(80,100,255,0.13),0 0 0 38px rgba(80,100,255,0.04),0 0 64px rgba(90,110,255,0.6);}
+  }
+  .dash-hero-info{flex:1;min-width:0;}
+  .dash-hero-title{font-size:var(--fs-md);font-weight:700;margin-bottom:6px;}
+  .dash-hero-info .status-line{max-width:none;text-align:left;margin-bottom:14px;font-size:var(--fs-md);color:#8db4ee;}
+  .dash-chips{display:flex;flex-wrap:wrap;gap:10px;}
+  .dchip{
+    display:flex;align-items:center;gap:8px;height:34px;padding:0 14px;border-radius:9px;cursor:pointer;
+    background:rgba(255,255,255,0.03);border:1px solid rgba(120,150,230,0.22);color:var(--text);
+    font-size:var(--fs-sm);font-weight:500;transition:background .15s,border-color .15s;
+  }
+  .dchip .ic{width:15px;height:15px;color:var(--text-dim);}
+  .dchip:hover{background:rgba(79,168,255,0.1);border-color:rgba(79,168,255,0.4);}
+  #dConvoPanel:not(.open){border:none;margin:0 !important;}
+  .notif-wrap{position:relative;}
+  .notif-count{
+    position:absolute;top:-4px;right:-4px;min-width:18px;height:18px;padding:0 5px;border-radius:9px;
+    background:#ff4d4f;color:#fff;font-size:10.5px;font-weight:700;display:flex;align-items:center;justify-content:center;
+    border:2px solid var(--bg);
+  }
+  .notif-count[hidden]{display:none;}
+  .notif-panel{
+    display:none;position:absolute;right:-8px;top:48px;width:360px;max-height:440px;z-index:40;
+    background:#0b1222;border:1px solid rgba(120,150,230,0.28);border-radius:12px;
+    box-shadow:0 20px 50px rgba(0,0,0,0.6);overflow:hidden;
+  }
+  .notif-panel.open{display:flex;flex-direction:column;}
+  .np-head{display:flex;align-items:center;justify-content:space-between;padding:13px 16px;border-bottom:1px solid var(--border);font-weight:700;font-size:var(--fs-base);}
+  .np-clear{background:none;border:none;color:var(--accent);font-size:var(--fs-xs);font-weight:600;cursor:pointer;}
+  .np-list{overflow-y:auto;}
+  .np-item{display:flex;gap:12px;align-items:flex-start;padding:12px 16px;border-bottom:1px solid var(--border);cursor:pointer;position:relative;}
+  .np-item:hover{background:rgba(255,255,255,0.03);}
+  .np-item.unread{background:rgba(79,168,255,0.07);}
+  .np-item.unread::after{content:"";position:absolute;right:14px;top:16px;width:8px;height:8px;border-radius:50%;background:var(--accent);}
+  .np-ico{width:34px;height:34px;border-radius:9px;flex-shrink:0;display:flex;align-items:center;justify-content:center;color:#fff;}
+  .np-ico .ic{width:17px;height:17px;}
+  .np-ico.confirmed{background:#2e8aef;} .np-ico.accepted{background:#7a5cf6;} .np-ico.delivered{background:#12a37a;}
+  .np-t{font-size:var(--fs-sm);font-weight:600;padding-right:18px;}
+  .np-s{font-size:var(--fs-xs);color:var(--text-dim);margin-top:2px;}
+  .np-time{font-size:var(--fs-2xs);color:var(--text-faint);margin-top:3px;}
+  .toast-stack{position:fixed;top:18px;right:18px;z-index:60;display:flex;flex-direction:column;gap:10px;pointer-events:none;}
+  .toast{
+    min-width:280px;max-width:340px;padding:12px 16px;border-radius:11px;background:#0e1830;
+    border:1px solid rgba(79,168,255,0.4);box-shadow:0 14px 40px rgba(0,0,0,0.55);
+    animation:toastin .25s ease-out;
+  }
+  .toast .tt{font-size:var(--fs-sm);font-weight:700;} .toast .ts{font-size:var(--fs-xs);color:var(--text-dim);margin-top:2px;}
+  @keyframes toastin{from{opacity:0;transform:translateY(-8px);}to{opacity:1;transform:none;}}
+  .dash-hint{font-size:var(--fs-xs);color:var(--accent);margin-top:10px;min-height:1.2em;}
+
+  .hwave{display:none;align-items:center;gap:4px;height:48px;position:absolute;right:232px;top:16px;pointer-events:none;}
+  .hwave span{width:3px;border-radius:2px;height:var(--h,10px);opacity:0.9;}
+  .hwave.active span{animation:hbar 1.1s ease-in-out infinite;animation-delay:var(--d,0s);}
+  @keyframes hbar{0%,100%{transform:scaleY(0.4);}50%{transform:scaleY(1);}}
+  @media (min-width:1500px){ .hwave{display:flex;} }
+
+  .dash-hero-right{display:flex;flex-direction:column;align-items:flex-end;justify-content:space-between;align-self:stretch;gap:12px;flex-shrink:0;position:relative;z-index:1;}
+  @media (max-width:1100px){ .lang{display:none;} }
+  .dash-hero-right .gear{width:32px;height:32px;font-size:14px;background:rgba(255,255,255,0.04);cursor:pointer;}
+  .lang{
+    display:flex;align-items:center;gap:9px;height:40px;padding:0 14px;border-radius:9px;white-space:nowrap;
+    background:rgba(255,255,255,0.03);border:1px solid rgba(120,150,230,0.22);font-size:var(--fs-sm);font-weight:500;
+  }
+  .lang .ic{width:16px;height:16px;color:var(--text-dim);}
+  .lang .chv{width:14px;height:14px;margin-left:14px;}
+
+  .dash-sec-title{font-size:var(--fs-lg);font-weight:700;display:flex;align-items:center;gap:10px;}
+  .dash-sec-title .ic{width:18px;height:18px;color:var(--accent);}
+  .dash-sec-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;}
+  .dash-link{background:none;border:none;color:var(--accent);font-size:var(--fs-sm);font-weight:600;cursor:pointer;}
+  .dash-link:hover{text-decoration:underline;}
+
+  .dash-quick-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:28px;}
+  @media (max-width:1250px){ .dash-quick-grid{grid-template-columns:repeat(2,1fr);} }
+  .dash-quick-card{
+    position:relative;display:flex;flex-direction:column;align-items:flex-start;gap:14px;text-align:left;color:inherit;
+    padding:18px 62px 18px 20px;border-radius:12px;cursor:pointer;
+    background:rgba(255,255,255,0.025);border:1px solid rgba(120,150,230,0.16);
+    transition:border-color .15s,background .15s;
+  }
+  .dash-quick-card:hover{border-color:rgba(79,168,255,0.4);background:rgba(79,168,255,0.05);}
+  .dash-quick-icon{width:46px;height:46px;border-radius:11px;display:flex;align-items:center;justify-content:center;flex-shrink:0;color:#fff;}
+  .dash-quick-icon .ic{width:22px;height:22px;}
+  .dash-quick-icon.blue{background:linear-gradient(135deg,#3b9bff,#1f6fd6);}
+  .dash-quick-icon.green{background:linear-gradient(135deg,#17b184,#0c8a64);}
+  .dash-quick-icon.purple{background:linear-gradient(135deg,#7a5cf6,#5238d8);}
+  .dash-quick-icon.orange{background:linear-gradient(135deg,#f7a533,#e27b10);}
+  .dash-quick-text .t{font-size:var(--fs-md);font-weight:700;margin-bottom:3px;}
+  .dash-quick-text .s{font-size:var(--fs-xs);color:var(--text-dim);line-height:1.4;}
+  .dash-quick-arrow{
+    position:absolute;right:16px;top:50%;transform:translateY(-50%);width:34px;height:34px;border-radius:50%;
+    display:flex;align-items:center;justify-content:center;color:var(--text-dim);
+    background:rgba(255,255,255,0.05);border:1px solid rgba(120,150,230,0.18);
+  }
+  .dash-quick-arrow .ic{width:15px;height:15px;}
+
+  .dash-cols{display:grid;grid-template-columns:1.7fr 1fr;gap:20px;align-items:start;}
+  @media (max-width:1100px){ .dash-cols{grid-template-columns:1fr;} }
+  .dash-panel{border-radius:12px;background:rgba(255,255,255,0.02);border:1px solid rgba(120,150,230,0.16);padding:6px 0;overflow:hidden;}
+  .dash-panel-head{display:flex;align-items:center;justify-content:space-between;padding:12px 18px 12px;}
+
+  .a-row{
+    display:grid;grid-template-columns:40px 1fr 90px 104px;align-items:center;gap:14px;
+    padding:10px 18px;border-top:1px solid var(--border);cursor:pointer;transition:background .15s;
+  }
+  .a-row:hover{background:rgba(255,255,255,0.03);}
+  .a-ico{width:40px;height:40px;border-radius:9px;display:flex;align-items:center;justify-content:center;color:#fff;}
+  .a-ico .ic{width:20px;height:20px;}
+  .a-ico.green{background:#12a37a;} .a-ico.pink{background:#e8455f;}
+  .a-ico.purple{background:#6a4cf0;} .a-ico.orange{background:#f09a2a;}
+  .a-t{font-size:var(--fs-base);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .a-s{font-size:var(--fs-xs);color:var(--text-dim);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .a-s i{display:inline-block;width:3px;height:3px;border-radius:50%;background:var(--text-faint);margin:0 6px 2px;}
+  .a-time{font-size:var(--fs-sm);color:var(--text-dim);white-space:nowrap;}
+  .a-pill{
+    justify-self:end;display:inline-flex;align-items:center;gap:6px;padding:5px 11px;border-radius:999px;
+    font-size:var(--fs-xs);font-weight:600;white-space:nowrap;
+  }
+  .a-pill::before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor;}
+  .a-pill.success{background:var(--success-dim);color:var(--success);}
+  .a-pill.sold{background:rgba(79,168,255,0.18);color:#6db6ff;}
+  .a-pill.transit{background:rgba(155,107,255,0.2);color:#b79bff;}
+  .dash-panel .empty-note{padding:26px 0;}
+
+  .dash-suggest-list{display:flex;flex-direction:column;gap:10px;padding:2px 14px 12px;}
+  .dash-suggest-item{
+    display:flex;align-items:center;gap:12px;cursor:pointer;
+    padding:11px 14px;border-radius:9px;background:rgba(255,255,255,0.025);border:1px solid rgba(120,150,230,0.14);
+    transition:background .15s,border-color .15s;
+  }
+  .dash-suggest-item:hover{background:rgba(79,168,255,0.06);border-color:rgba(79,168,255,0.3);}
+  .dash-suggest-item .mic{width:36px;height:36px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,0.06);color:var(--text);}
+  .dash-suggest-item .mic .ic{width:16px;height:16px;}
+  .dash-suggest-item .tx{flex:1;min-width:0;}
+  .dash-suggest-item .t{font-size:var(--fs-base);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .dash-suggest-item .s{font-size:var(--fs-xs);color:var(--text-dim);margin-top:2px;}
+  .dash-suggest-item .chev{color:var(--text-faint);}
+  .dash-suggest-item .chev .ic{width:15px;height:15px;}
+
+  /* ---------------- OTP banner ---------------- */
+  .otp-banner{
+    background:linear-gradient(135deg,rgba(79,168,255,0.14),rgba(155,107,255,0.08));
+    border:1px solid rgba(79,168,255,0.28);
+    border-radius:var(--r-md);
+    padding:var(--sp-3);
+    margin-bottom:var(--sp-3);
+  }
+  .otp-banner-head{display:flex;align-items:center;gap:7px;margin-bottom:6px;color:var(--accent);}
+  .otp-banner-head .ic{width:15px;height:15px;}
+  .otp-banner-head span{font-size:var(--fs-xs);font-weight:700;letter-spacing:.2px;}
+  .otp-row{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 0;}
+  .otp-row + .otp-row{border-top:1px dashed rgba(255,255,255,0.08);}
+  .otp-row-info .t{font-size:var(--fs-sm);font-weight:600;}
+  .otp-row-info .s{font-size:var(--fs-2xs);color:var(--text-dim);margin-top:1px;}
+  .otp-code{
+    font-family:'Inter',monospace;font-weight:700;font-size:var(--fs-lg);letter-spacing:2px;
+    color:var(--accent);background:rgba(79,168,255,0.12);padding:3px 9px;border-radius:var(--r-sm);
+    flex-shrink:0;
+  }
+
+  /* ---------------- row list (home actions) ---------------- */
+  .list{display:flex;flex-direction:column;gap:6px;}
   .row{
-    display:flex;align-items:center;gap:6px;
-    padding:6px 8px;border-radius:9px;cursor:pointer;
-    border:1px solid rgba(255,255,255,0.06);
-    transition:opacity .15s, transform .1s;
+    display:flex;align-items:center;gap:10px;
+    padding:10px 12px;border-radius:var(--r-md);cursor:pointer;
+    border:1px solid var(--border);
+    background:var(--surface-2);
+    transition:background .15s, transform .1s, border-color .15s;
   }
-  .row:active{transform:scale(0.99);}
+  .row:active{transform:scale(0.98);}
   .row.disabled{opacity:0.4;cursor:not-allowed;pointer-events:none;}
-  .row.stop{background:linear-gradient(135deg,var(--stop-a),var(--stop-b));}
-  .row.resume{background:linear-gradient(135deg,var(--resume-a),var(--resume-b));}
-  .row.convo{background:linear-gradient(135deg,var(--convo-a),var(--convo-b));}
+  .row.stop .row-icon{background:var(--danger-dim);color:var(--danger);}
+  .row.resume .row-icon{background:var(--accent-dim);color:var(--accent);}
+  .row.convo .row-icon{background:rgba(155,107,255,0.14);color:var(--purple);}
   .row-icon{
-    width:18px;height:18px;border-radius:50%;flex-shrink:0;
-    background:rgba(255,255,255,0.14);
-    display:flex;align-items:center;justify-content:center;font-size:0.52rem;
+    width:30px;height:30px;border-radius:var(--r-sm);flex-shrink:0;
+    display:flex;align-items:center;justify-content:center;font-size:13px;
   }
+  .row-icon .ic{width:15px;height:15px;}
   .row-text{flex:1;min-width:0;}
-  .row-text .title{font-weight:600;font-size:0.56rem;}
-  .row-text .sub{font-size:0.44rem;color:rgba(234,241,255,0.75);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-  .chevron{flex-shrink:0;color:rgba(255,255,255,0.65);transition:transform .2s;font-size:0.58rem;}
+  .row-text .title{font-weight:600;font-size:var(--fs-sm);}
+  .row-text .sub{font-size:var(--fs-2xs);color:var(--text-dim);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .chevron{flex-shrink:0;color:var(--text-faint);transition:transform .2s;}
+  .chevron .ic{width:14px;height:14px;}
   .row.open .chevron{transform:rotate(90deg);}
 
   .panel{
     max-height:0;overflow:hidden;transition:max-height .25s ease;
-    background:#0b1830;border-radius:9px;margin-top:-2px;
+    background:var(--surface);border-radius:var(--r-md);margin-top:-2px;border:1px solid transparent;
   }
-  .panel.open{max-height:150px;overflow-y:auto;-webkit-overflow-scrolling:touch;}
-  .panel-inner{padding:6px 6px 2px;}
+  .panel.open{max-height:170px;overflow-y:auto;-webkit-overflow-scrolling:touch;border-color:var(--border);}
+  .panel-inner{padding:8px;}
   .bubble{
-    padding:5px 7px;border-radius:8px;margin-bottom:5px;
-    font-size:0.52rem;line-height:1.3;max-width:88%;word-wrap:break-word;
+    padding:6px 9px;border-radius:var(--r-sm);margin-bottom:6px;
+    font-size:var(--fs-xs);line-height:1.35;max-width:88%;word-wrap:break-word;
   }
-  .bubble.user{background:#1c3a5e;margin-left:auto;border-bottom-right-radius:2px;}
-  .bubble.assistant{background:#241a3d;border:1px solid #3a2a63;border-bottom-left-radius:2px;}
-  .empty-note{color:var(--text-muted);font-size:0.48rem;text-align:center;padding:7px 0;}
+  .bubble.user{background:var(--accent-dim);margin-left:auto;border-bottom-right-radius:2px;color:#d7ebff;}
+  .bubble.assistant{background:var(--surface-3);border:1px solid var(--border);border-bottom-left-radius:2px;}
+  .empty-note{color:var(--text-faint);font-size:var(--fs-xs);text-align:center;padding:14px 0;}
 
   .tagline{
-    text-align:center;font-size:0.4rem;letter-spacing:1.5px;color:var(--text-muted);
-    margin-top:10px;font-weight:500;
+    text-align:center;font-size:var(--fs-2xs);letter-spacing:2px;color:var(--text-faint);
+    margin-top:16px;font-weight:600;
   }
 
-  /* ---------- STOCKS TAB ---------- */
-  .view-title{font-size:0.68rem;font-weight:700;margin:4px 0 8px;text-align:center;}
-  .stock-status{font-size:0.44rem;color:var(--text-muted);text-align:center;min-height:1em;margin-bottom:6px;}
-  .stock-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;}
-  .stock-card{
-    background:#101c34;border:1px solid rgba(255,255,255,0.06);border-radius:9px;
-    padding:6px;display:flex;flex-direction:column;align-items:center;text-align:center;
-  }
-  .stock-card .photo{
-    width:100%;height:56px;object-fit:contain;background:#fff;border-radius:6px;margin-bottom:5px;
-  }
-  .stock-card .nophoto{
-    width:100%;height:56px;display:flex;align-items:center;justify-content:center;
-    background:#182642;border-radius:6px;margin-bottom:5px;color:var(--text-muted);font-size:0.4rem;
-  }
-  .stock-card .s-name{font-size:0.5rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;}
-  .stock-card .s-qty{font-size:0.42rem;color:var(--text-muted);margin:1px 0 5px;}
-  .stock-card .s-qty.low{color:#ff6b6b;}
-  .s-upload{
-    font-size:0.4rem;background:#1d2c4d;color:var(--line-blue);
-    padding:4px 6px;border-radius:6px;cursor:pointer;width:100%;
-  }
-  .s-upload input{display:none;}
-  .empty-stock{grid-column:1/-1;color:var(--text-muted);font-size:0.5rem;text-align:center;padding:14px 0;}
+  /* ---------------- shared view title + toolbar ---------------- */
+  .view-title{font-size:var(--fs-lg);font-weight:700;margin:2px 0 12px;text-align:left;}
 
-  /* ---------- NAVBAR (slim, edge-to-edge, with travelling blue light) ---------- */
+  .toolbar{display:flex;gap:8px;margin-bottom:10px;}
+  .search-box{
+    flex:1;display:flex;align-items:center;gap:7px;
+    background:var(--surface-2);border:1px solid var(--border);border-radius:var(--r-sm);
+    padding:0 10px;height:34px;
+  }
+  .search-box .ic{width:14px;height:14px;color:var(--text-faint);flex-shrink:0;}
+  .search-box input{
+    flex:1;background:none;border:none;outline:none;color:var(--text);font-size:var(--fs-sm);height:100%;min-width:0;
+  }
+  .search-box input::placeholder{color:var(--text-faint);}
+  .chip-btn{
+    display:flex;align-items:center;gap:5px;flex-shrink:0;
+    background:var(--surface-2);border:1px solid var(--border);border-radius:var(--r-sm);
+    padding:0 11px;height:34px;font-size:var(--fs-xs);color:var(--text-dim);font-weight:600;cursor:pointer;
+    transition:background .15s,color .15s,border-color .15s;
+  }
+  .chip-btn .ic{width:13px;height:13px;}
+  .chip-btn.active{background:var(--accent-dim);border-color:rgba(79,168,255,0.35);color:var(--accent);}
+
+  /* segmented control (History: Added/Sold) */
+  .seg{display:flex;background:var(--surface-2);border:1px solid var(--border);border-radius:var(--r-sm);padding:3px;gap:3px;margin-bottom:10px;}
+  .seg-btn{
+    flex:1;padding:7px 0;border:none;background:none;border-radius:7px;
+    font-size:var(--fs-xs);font-weight:600;color:var(--text-dim);cursor:pointer;transition:background .15s,color .15s;
+  }
+  .seg-btn.active{background:var(--accent);color:#04111f;}
+
+  .chip-row{display:flex;gap:7px;margin-bottom:10px;}
+  .chip{
+    padding:6px 11px;border-radius:999px;font-size:var(--fs-2xs);font-weight:600;
+    background:var(--surface-2);color:var(--text-dim);border:1px solid var(--border);cursor:pointer;
+    transition:background .15s,color .15s,border-color .15s;
+  }
+  .chip.active{background:var(--accent-dim);color:var(--accent);border-color:rgba(79,168,255,0.35);}
+
+  /* ---------------- pills ---------------- */
+  .pill{
+    font-size:var(--fs-2xs);font-weight:700;padding:3px 8px;border-radius:999px;flex-shrink:0;white-space:nowrap;
+  }
+  .pill.success{background:var(--success-dim);color:var(--success);}
+  .pill.warning{background:var(--warning-dim);color:var(--warning);}
+  .pill.danger{background:var(--danger-dim);color:var(--danger);}
+  .pill.neutral{background:var(--surface-3);color:var(--text-dim);}
+
+  /* ---------------- STOCKS: dense list rows ---------------- */
+  .s-row{
+    display:flex;align-items:center;gap:10px;
+    padding:9px 10px;border-radius:var(--r-md);
+    background:var(--surface-2);border:1px solid var(--border);
+    margin-bottom:6px;cursor:pointer;transition:background .15s, transform .1s;
+  }
+  .s-row:active{transform:scale(0.98);}
+  .s-thumb{
+    width:36px;height:36px;border-radius:var(--r-sm);flex-shrink:0;object-fit:cover;background:#fff;
+  }
+  .s-thumb.ph{
+    display:flex;align-items:center;justify-content:center;background:var(--surface-3);color:var(--text-dim);
+    font-weight:700;font-size:var(--fs-sm);
+  }
+  .s-info{flex:1;min-width:0;}
+  .s-name{font-size:var(--fs-sm);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .s-meta{font-size:var(--fs-2xs);color:var(--text-dim);margin-top:1px;}
+  .s-right{display:flex;align-items:center;gap:8px;flex-shrink:0;}
+  .empty-stock{color:var(--text-faint);font-size:var(--fs-sm);text-align:center;padding:30px 0;}
+
+  /* ---------------- HISTORY: dense rows ---------------- */
+  .h-row{
+    display:flex;align-items:center;gap:10px;
+    padding:9px 10px;border-radius:var(--r-md);
+    background:var(--surface-2);border:1px solid var(--border);
+    margin-bottom:6px;cursor:pointer;transition:background .15s, transform .1s;
+  }
+  .h-row:active{transform:scale(0.98);}
+  .h-icon{
+    width:32px;height:32px;border-radius:var(--r-sm);flex-shrink:0;
+    display:flex;align-items:center;justify-content:center;
+  }
+  .h-icon .ic{width:15px;height:15px;}
+  .h-icon.wholesaler{background:rgba(155,107,255,0.14);color:var(--purple);}
+  .h-icon.manual{background:var(--accent-dim);color:var(--accent);}
+  .h-icon.sold{background:var(--success-dim);color:var(--success);}
+  .h-info{flex:1;min-width:0;}
+  .h-title{font-size:var(--fs-sm);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .h-sub{font-size:var(--fs-2xs);color:var(--text-dim);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .h-right{display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0;}
+  .h-amount{font-size:var(--fs-sm);font-weight:700;}
+
+  /* ---------------- DRAWER (bottom sheet) ---------------- */
+  .overlay{
+    position:fixed;inset:0;background:rgba(3,6,12,0.6);z-index:20;
+    opacity:0;pointer-events:none;transition:opacity .2s;
+  }
+  .overlay.open{opacity:1;pointer-events:auto;}
+  .drawer{
+    position:fixed;left:0;right:0;bottom:0;z-index:21;
+    max-width:420px;margin:0 auto;
+    background:var(--surface);border:1px solid var(--border-strong);border-bottom:none;
+    border-radius:18px 18px 0 0;
+    transform:translateY(100%);transition:transform .28s cubic-bezier(.32,.72,0,1);
+    max-height:78vh;display:flex;flex-direction:column;
+    box-shadow:0 -16px 50px rgba(0,0,0,0.5);
+    padding-bottom:env(safe-area-inset-bottom,0px);
+  }
+  .drawer.open{transform:translateY(0);}
+  .drawer-handle{width:34px;height:4px;border-radius:3px;background:var(--border-strong);margin:9px auto 2px;flex-shrink:0;}
+
+  /* ---- desktop: drawer becomes a right-side slide-in panel ---- */
+  @media (min-width:900px){
+    .drawer{
+      left:auto;right:0;top:0;bottom:0;margin:0;
+      width:380px;max-width:380px;max-height:100dvh;
+      border-radius:18px 0 0 18px;border:1px solid var(--border-strong);border-right:none;
+      box-shadow:-20px 0 60px rgba(0,0,0,0.5);
+      transform:translateX(100%);
+      padding-bottom:0;
+    }
+    .drawer.open{transform:translateX(0);}
+    .drawer-handle{display:none;}
+    .drawer-body{flex:1;}
+  }
+  .drawer-header{
+    display:flex;align-items:flex-start;justify-content:space-between;gap:10px;
+    padding:10px 16px 12px;border-bottom:1px solid var(--border);flex-shrink:0;
+  }
+  .drawer-close{
+    width:26px;height:26px;border-radius:50%;background:var(--surface-2);border:1px solid var(--border);
+    display:flex;align-items:center;justify-content:center;color:var(--text-dim);cursor:pointer;flex-shrink:0;
+  }
+  .drawer-close .ic{width:13px;height:13px;}
+  .drawer-body{padding:14px 16px 20px;overflow-y:auto;-webkit-overflow-scrolling:touch;}
+
+  .dh-thumb{width:42px;height:42px;border-radius:var(--r-sm);object-fit:cover;background:#fff;flex-shrink:0;}
+  .dh-thumb.ph{display:flex;align-items:center;justify-content:center;background:var(--surface-3);color:var(--text-dim);font-weight:700;font-size:var(--fs-md);}
+  .dh-title-wrap{display:flex;gap:10px;align-items:center;min-width:0;flex:1;}
+  .dh-title{font-size:var(--fs-md);font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .dh-sub{font-size:var(--fs-xs);color:var(--text-dim);margin-top:2px;}
+
+  .detail-section{margin-bottom:16px;}
+  .detail-section:last-child{margin-bottom:0;}
+  .detail-section h4{font-size:var(--fs-2xs);text-transform:uppercase;letter-spacing:.6px;color:var(--text-faint);font-weight:700;margin-bottom:8px;}
+  .detail-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+  .detail-cell{background:var(--surface-2);border:1px solid var(--border);border-radius:var(--r-sm);padding:8px 10px;}
+  .detail-cell .lbl{font-size:var(--fs-2xs);color:var(--text-faint);margin-bottom:2px;}
+  .detail-cell .val{font-size:var(--fs-sm);font-weight:700;}
+  .detail-cell .val.danger{color:var(--danger);}
+  .detail-cell .val.success{color:var(--success);}
+
+  .upload-btn{
+    display:flex;align-items:center;justify-content:center;gap:7px;width:100%;
+    background:var(--accent-dim);color:var(--accent);border:1px solid rgba(79,168,255,0.3);
+    border-radius:var(--r-sm);padding:10px;font-size:var(--fs-sm);font-weight:700;cursor:pointer;
+  }
+  .upload-btn .ic{width:15px;height:15px;}
+  .upload-btn input{display:none;}
+  .upload-status{font-size:var(--fs-2xs);color:var(--text-dim);text-align:center;margin-top:6px;min-height:1.2em;}
+
+  /* timeline stepper */
+  .stepper{display:flex;flex-direction:column;}
+  .step{display:flex;gap:10px;}
+  .step-rail{display:flex;flex-direction:column;align-items:center;width:18px;flex-shrink:0;}
+  .step-dot{
+    width:18px;height:18px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;
+    background:var(--surface-3);color:var(--text-faint);border:2px solid var(--border-strong);
+  }
+  .step-dot .ic{width:10px;height:10px;}
+  .step.done .step-dot{background:var(--success);border-color:var(--success);color:#04241a;}
+  .step-line{width:2px;flex:1;background:var(--border-strong);min-height:18px;}
+  .step.done .step-line{background:var(--success);}
+  .step:last-child .step-line{display:none;}
+  .step-body{padding-bottom:16px;flex:1;min-width:0;}
+  .step:last-child .step-body{padding-bottom:0;}
+  .step-label{font-size:var(--fs-sm);font-weight:600;color:var(--text-dim);}
+  .step.done .step-label{color:var(--text);}
+  .step-time{font-size:var(--fs-2xs);color:var(--text-faint);margin-top:1px;}
+
+  /* ---------------- NAVBAR ---------------- */
   .navbar{
     position:fixed;left:0;right:0;bottom:0;
-    width:100%;max-width:none;transform:none;
-    background:#0c1a30;
-    border:none;
-    box-shadow:inset 0 1px 0 #1c2f4d, 0 -3px 16px rgba(63,169,255,0.10);
-    border-radius:12px 12px 0 0;
+    width:100%;max-width:420px;margin:0 auto;
+    background:#0a1221;
+    border:1px solid var(--border);border-bottom:none;
+    box-shadow:0 -6px 20px rgba(0,0,0,0.3);
+    border-radius:16px 16px 0 0;
     display:flex;justify-content:space-around;align-items:center;
-    padding:4px 6px calc(4px + env(safe-area-inset-bottom,0px));
-    z-index:2;
+    padding:7px 6px calc(7px + env(safe-area-inset-bottom,0px));
+    z-index:19;
   }
   .navbar::before{
     content:"";
@@ -170,8 +621,8 @@
       from var(--angle),
       transparent 0deg,
       transparent 230deg,
-      rgba(63,169,255,0.25) 270deg,
-      #3fa9ff 320deg,
+      rgba(79,168,255,0.2) 270deg,
+      #4fa8ff 320deg,
       #b9e2ff 345deg,
       transparent 360deg
     );
@@ -185,14 +636,201 @@
   @keyframes travel{ to { --angle:360deg; } }
 
   .nav-item{
-    display:flex;flex-direction:column;align-items:center;gap:0;
-    color:var(--text-muted);font-size:0.46rem;opacity:0.55;flex:1;line-height:1.2;
-    background:none;border:none;font-family:inherit;
+    display:flex;flex-direction:column;align-items:center;gap:3px;
+    color:var(--text-faint);font-size:var(--fs-2xs);opacity:0.7;flex:1;line-height:1.2;
+    background:none;border:none;font-family:inherit;padding:4px 0;font-weight:600;cursor:pointer;
   }
-  .nav-item span{font-size:0.68rem;}
-  .nav-item.active{color:var(--nav-active);opacity:1;}
-  .nav-item .nav-underline{width:8px;height:1.5px;border-radius:2px;background:transparent;margin-top:1px;}
-  .nav-item.active .nav-underline{background:var(--nav-active);}
+  .nav-item .ic{width:17px;height:17px;}
+  .nav-item.active{color:var(--accent);opacity:1;}
+  .nav-item .nav-underline{width:12px;height:2px;border-radius:2px;background:transparent;margin-top:1px;}
+  .nav-item.active .nav-underline{background:var(--accent);}
+
+  .sidebar-brand{display:none;}
+  .upgrade-card{display:none;}
+
+  /* ---- desktop: navbar becomes a full-height fixed sidebar ---- */
+  @media (min-width:900px){
+    .navbar{
+      position:fixed;top:0;left:0;bottom:0;right:auto;
+      width:250px;max-width:250px;flex-shrink:0;height:100vh;
+      flex-direction:column;align-items:stretch;justify-content:flex-start;
+      border-radius:0;border:none;border-right:1px solid var(--border);
+      box-shadow:none;background:#080d19;
+      padding:22px 14px 20px;gap:6px;margin:0;overflow-y:auto;
+    }
+    .navbar::before{display:none;}
+    .sidebar-brand{display:flex;align-items:center;gap:12px;padding:2px 10px 22px;}
+    .sidebar-brand .logo{width:38px;height:38px;flex-shrink:0;}
+    .sidebar-brand h1{font-size:21px;font-weight:700;letter-spacing:-0.2px;font-family:'Poppins',system-ui,sans-serif;line-height:1.15;}
+    .sidebar-brand h1 .voice{color:#fff;} .sidebar-brand h1 .stock{color:var(--accent);}
+    .sidebar-brand p{font-size:11.5px;color:var(--text-dim);margin-top:2px;}
+    .nav-item{
+      flex:none;position:relative;
+      flex-direction:row;align-items:center;justify-content:flex-start;gap:14px;
+      padding:12px 14px;border-radius:10px;font-size:15px;font-weight:500;
+      text-align:left;opacity:1;color:var(--text-dim);
+    }
+    .nav-item:hover{background:rgba(255,255,255,0.04);color:var(--text);}
+    .nav-item .ic{width:20px;height:20px;flex-shrink:0;}
+    .nav-item.active{background:linear-gradient(90deg,rgba(46,138,239,0.30),rgba(46,138,239,0.12));color:#fff;}
+    .nav-item.active:hover{background:linear-gradient(90deg,rgba(46,138,239,0.30),rgba(46,138,239,0.12));}
+    .nav-item.active::before{content:"";position:absolute;left:0;top:7px;bottom:7px;width:3px;border-radius:3px;background:var(--accent);}
+    .nav-item.active .ic{color:#cfe6ff;}
+    .nav-item .nav-underline{display:none;}
+
+    .upgrade-card{
+      display:block;margin-top:auto;padding:14px;border-radius:12px;
+      background:rgba(255,255,255,0.025);border:1px solid rgba(120,150,230,0.18);
+    }
+    .up-head{display:flex;gap:10px;align-items:flex-start;margin-bottom:12px;}
+    .up-head .ic{width:22px;height:22px;color:var(--accent);flex-shrink:0;fill:rgba(79,168,255,0.25);}
+    .up-t{font-size:13.5px;font-weight:700;}
+    .up-s{font-size:11.5px;color:var(--text-dim);margin-top:2px;line-height:1.4;}
+    .up-btn{
+      width:100%;height:38px;border:none;border-radius:9px;cursor:pointer;color:#fff;font-weight:600;font-size:13.5px;
+      background:linear-gradient(90deg,#2e8aef,#7b5bf5);
+    }
+  }
+
+  /* ================= PROFILE PAGE ================= */
+  .pf-sub{color:var(--text-dim);font-size:var(--fs-sm);margin:-6px 0 14px;}
+  .pf-grid{display:grid;grid-template-columns:minmax(0,1fr);gap:14px;align-items:start;}
+  .pf-col{display:flex;flex-direction:column;gap:14px;min-width:0;}
+  @media (min-width:900px){
+    #profileView{max-width:1560px;}
+    .pf-grid{grid-template-columns:repeat(2,minmax(0,1fr));}
+  }
+  @media (min-width:1280px){
+    .pf-grid{grid-template-columns:minmax(0,1.15fr) minmax(0,1fr) 300px;}
+  }
+  .pf-card{background:var(--surface);border:1px solid rgba(120,150,230,0.16);border-radius:14px;overflow:hidden;}
+  .pf-card-head{display:flex;align-items:center;gap:12px;padding:14px 16px;}
+  .pf-card-head .pf-ico{background:transparent;border:none;color:var(--text);width:30px;height:30px;}
+  .pf-card-head .pf-ico .ic{width:24px;height:24px;stroke-width:1.5;}
+  .pf-ct{font-size:var(--fs-md);font-weight:600;}
+  .pf-cs{font-size:var(--fs-xs);color:var(--text-dim);margin-top:1px;}
+
+  .pf-hero{display:flex;align-items:center;gap:18px;padding:20px;flex-wrap:wrap;
+    background:radial-gradient(420px 200px at 8% 40%,rgba(70,110,255,0.20),transparent 70%),var(--surface);}
+  .pf-avatar{width:78px;height:78px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;
+    font-size:34px;font-weight:600;color:#fff;font-family:'Poppins',system-ui,sans-serif;
+    background:linear-gradient(135deg,var(--accent-strong),var(--accent));box-shadow:0 0 0 4px var(--accent-dim);}
+  .pf-hero-info{flex:1;min-width:180px;}
+  .pf-name-line{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px;}
+  .pf-name{font-size:21px;font-weight:600;font-family:'Poppins',system-ui,sans-serif;overflow-wrap:anywhere;}
+  .pf-badge{font-size:var(--fs-2xs);font-weight:600;padding:3px 10px;border-radius:20px;background:var(--accent-dim);color:var(--accent);border:1px solid rgba(120,150,230,0.3);}
+  .pf-meta{display:flex;align-items:center;gap:8px;font-size:var(--fs-sm);color:var(--text-dim);margin-top:4px;overflow-wrap:anywhere;}
+  .pf-meta .ic{width:14px;height:14px;flex-shrink:0;}
+  .pf-meta.faint{color:var(--text-faint);font-size:var(--fs-xs);margin-top:8px;}
+  .pf-meta .add{color:var(--accent);cursor:pointer;}
+  .pf-btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:38px;padding:0 16px;border-radius:9px;cursor:pointer;
+    font-size:var(--fs-sm);font-weight:600;color:var(--text);background:rgba(255,255,255,0.03);border:1px solid rgba(120,150,230,0.3);}
+  .pf-btn .ic{width:15px;height:15px;}
+  .pf-btn:hover{border-color:var(--accent);}
+  .pf-btn.primary{border:none;color:#fff;background:linear-gradient(90deg,var(--accent-strong),var(--purple));}
+  .pf-btn.block{width:100%;}
+  .pf-btn.danger{color:var(--danger);border-color:rgba(241,104,95,0.4);background:var(--danger-dim);}
+  .pf-btn:disabled{opacity:.55;cursor:default;}
+
+  .pf-row{display:flex;align-items:center;gap:12px;padding:var(--pf-row-pad,11px) 16px;border-top:1px solid var(--border);cursor:pointer;transition:background .15s;width:100%;
+    background:none;border-left:none;border-right:none;border-bottom:none;color:inherit;text-align:left;font:inherit;}
+  .pf-row:hover{background:rgba(255,255,255,0.03);}
+  .pf-row.static{cursor:default;} .pf-row.static:hover{background:none;}
+  .pf-ico{width:34px;height:34px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;background:var(--surface-3);color:var(--text-dim);}
+  .pf-ico .ic{width:16px;height:16px;}
+  .pf-rm{flex:1;min-width:0;}
+  .pf-rt{display:block;font-size:var(--fs-sm);font-weight:600;}
+  .pf-rs{display:block;font-size:var(--fs-xs);color:var(--text-faint);margin-top:1px;overflow-wrap:anywhere;}
+  .pf-val{font-size:var(--fs-sm);color:var(--text-dim);white-space:nowrap;}
+  .pf-chev{width:14px;height:14px;color:var(--text-faint);flex-shrink:0;}
+  .pf-switch{width:42px;height:24px;border-radius:12px;background:var(--surface-3);border:1px solid var(--border-strong);position:relative;flex-shrink:0;cursor:pointer;transition:background .2s;padding:0;}
+  .pf-switch::after{content:"";position:absolute;top:2px;left:2px;width:18px;height:18px;border-radius:50%;background:#fff;transition:transform .2s;}
+  .pf-switch.on{background:var(--accent-strong);border-color:var(--accent-strong);}
+  .pf-switch.on::after{transform:translateX(18px);}
+  .pf-test{margin:12px 16px 16px;padding:12px 14px;border-radius:12px;display:flex;align-items:center;gap:12px;background:var(--surface-2);border:1px solid var(--border);}
+  .pf-play{width:38px;height:38px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;background:var(--accent-strong);color:#fff;}
+  .pf-play .ic{width:15px;height:15px;fill:#fff;}
+  .pf-dots{display:flex;gap:8px;align-items:center;}
+  .pf-dot{width:16px;height:16px;border-radius:50%;border:2px solid transparent;cursor:pointer;padding:0;}
+  .pf-dot.sel{border-color:var(--text);box-shadow:0 0 0 2px var(--surface);}
+
+  .pf-plan{margin:0 16px 4px;padding:14px;border-radius:12px;border:1px solid rgba(124,92,255,0.45);background:linear-gradient(135deg,rgba(60,70,200,0.20),rgba(124,92,255,0.08));}
+  .pf-plan-top{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px;}
+  .pf-plan-name{display:flex;align-items:center;gap:8px;font-weight:600;font-size:var(--fs-base);}
+  .pf-plan-name .ic{width:16px;height:16px;}
+  .pf-pill{font-size:var(--fs-2xs);font-weight:600;padding:3px 10px;border-radius:20px;background:rgba(124,92,255,0.3);color:#cfc3ff;}
+  .pf-plan-body{display:flex;gap:12px;align-items:stretch;flex-wrap:wrap;margin-top:10px;}
+  .pf-plan-body .pf-btn{flex:1;min-width:140px;align-self:flex-end;}
+  .pf-usage{display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:12px;background:rgba(255,255,255,0.04);border:1px solid var(--border);flex:1;min-width:170px;}
+  .pf-usage small{display:block;font-size:var(--fs-2xs);color:var(--text-faint);}
+  .pf-ring{width:42px;height:42px;flex-shrink:0;position:relative;}
+  .pf-ring svg{width:42px;height:42px;transform:rotate(-90deg);}
+  .pf-ring span{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:10.5px;font-weight:600;}
+
+  .pf-pro{padding:18px;background:radial-gradient(300px 160px at 20% 0%,rgba(80,100,255,0.28),transparent 70%),var(--surface);}
+  .pf-pro-crown{width:52px;height:52px;border-radius:12px;display:flex;align-items:center;justify-content:center;color:#fff;margin-bottom:14px;background:linear-gradient(135deg,var(--accent-strong),var(--purple));}
+  .pf-pro-crown .ic{width:26px;height:26px;fill:#fff;}
+  .pf-pro h3{font-size:19px;font-weight:600;font-family:'Poppins',system-ui,sans-serif;}
+  .pf-pro .sub{color:var(--text-dim);font-size:var(--fs-md);margin:2px 0 14px;}
+  .pf-pro ul{list-style:none;margin-bottom:18px;}
+  .pf-pro li{display:flex;align-items:center;gap:10px;font-size:var(--fs-sm);padding:5px 0;}
+  .pf-pro li .ic{width:14px;height:14px;color:var(--accent);flex-shrink:0;}
+  .pf-qa-title{padding:14px 16px 6px;font-size:var(--fs-md);font-weight:600;}
+  .pf-logout{padding:12px;}
+  .pf-del{font-size:var(--fs-xs);color:var(--text-faint);padding:10px 4px 0;}
+  .pf-del a{color:var(--accent);cursor:pointer;}
+  .pf-loading{color:var(--text-faint);font-size:var(--fs-sm);padding:30px 0;text-align:center;}
+
+  /* form controls inside the drawer */
+  .pf-field{margin-bottom:12px;}
+  .pf-field label{display:block;font-size:var(--fs-2xs);text-transform:uppercase;letter-spacing:.6px;color:var(--text-faint);font-weight:700;margin-bottom:5px;}
+  .pf-input{width:100%;height:40px;padding:0 12px;border-radius:var(--r-sm);background:var(--surface-2);border:1px solid var(--border-strong);color:var(--text);font:inherit;font-size:var(--fs-base);outline:none;}
+  .pf-input:focus{border-color:var(--accent);}
+  .pf-err{font-size:var(--fs-xs);color:var(--danger);min-height:1.3em;margin:2px 0 10px;}
+  .pf-opt{display:flex;align-items:center;gap:12px;width:100%;padding:12px;margin-bottom:8px;border-radius:var(--r-sm);cursor:pointer;
+    background:var(--surface-2);border:1px solid var(--border);color:var(--text);font:inherit;text-align:left;}
+  .pf-opt.sel{border-color:var(--accent);background:var(--accent-dim);}
+  .pf-opt .pf-rt{flex:1;}
+  .pf-opt .ic{width:16px;height:16px;color:var(--accent);}
+  .pf-help{font-size:var(--fs-xs);color:var(--text-dim);line-height:1.5;margin-bottom:12px;}
+  .pf-hist{display:flex;flex-direction:column;gap:6px;margin-bottom:12px;}
+  .pf-hist .b{padding:8px 10px;border-radius:10px;font-size:var(--fs-sm);max-width:92%;overflow-wrap:anywhere;}
+  .pf-hist .b.user{align-self:flex-end;background:var(--accent-dim);}
+  .pf-hist .b.assistant{align-self:flex-start;background:var(--surface-2);border:1px solid var(--border);}
+  .pf-hist .t{font-size:var(--fs-2xs);color:var(--text-faint);margin-top:2px;}
+  .pf-faq{border-top:1px solid var(--border);padding:10px 0;}
+  .pf-faq b{display:block;font-size:var(--fs-sm);margin-bottom:3px;}
+  .pf-faq span{font-size:var(--fs-xs);color:var(--text-dim);line-height:1.5;}
+  .np-ico.cancelled{background:#e8455f;} .np-ico.lowstock{background:#e8a317;} .np-ico.placed{background:#4b6cff;}
+  .toast.ok{border-color:rgba(52,211,153,0.5);} .toast.bad{border-color:rgba(241,104,95,0.55);}
+
+  /* ================= DENSITY ================= */
+  html[data-density="compact"]{--pf-row-pad:7px;}
+  html[data-density="compact"] .s-row, html[data-density="compact"] .h-row{padding:5px 10px;margin-bottom:4px;}
+  html[data-density="compact"] .a-row{padding:6px 18px;}
+
+  /* ================= LIGHT THEME ================= */
+  html[data-theme="light"]{
+    --bg:#f3f6fc;--surface:#ffffff;--surface-2:#eef2fa;--surface-3:#e3e9f5;
+    --border:rgba(15,30,70,0.10);--border-strong:rgba(15,30,70,0.20);
+    --text:#0e1a33;--text-dim:#4a5978;--text-faint:#7685a3;
+    color-scheme:light;
+  }
+  html[data-theme="light"] .brand-text h1 .voice, html[data-theme="light"] .sidebar-brand h1 .voice{color:var(--text);}
+  html[data-theme="light"] .waves{opacity:0.08;}
+  html[data-theme="light"] .navbar{background:#ffffff;box-shadow:0 -6px 20px rgba(15,30,70,0.08);}
+  html[data-theme="light"] .dash-hero{background:radial-gradient(520px 220px at 6% 50%,rgba(70,90,255,0.12),transparent 70%),linear-gradient(135deg,#ffffff,#eef2fb);border-color:rgba(70,100,220,0.22);}
+  html[data-theme="light"] .dash-mic{background:radial-gradient(circle at 50% 38%,#3a5bd9,#2a43b0);}
+  html[data-theme="light"] .notif-panel{background:#ffffff;border-color:var(--border-strong);box-shadow:0 20px 50px rgba(15,30,70,0.18);}
+  html[data-theme="light"] .toast{background:#ffffff;box-shadow:0 14px 40px rgba(15,30,70,0.2);}
+  html[data-theme="light"] .icon-btn, html[data-theme="light"] .pf-btn, html[data-theme="light"] .dash-status-pill,
+  html[data-theme="light"] .dash-suggest-item, html[data-theme="light"] .dash-quick-card, html[data-theme="light"] .dash-panel,
+  html[data-theme="light"] .upgrade-card, html[data-theme="light"] .pf-usage{background:rgba(15,30,70,0.03);}
+  html[data-theme="light"] .pf-row:hover, html[data-theme="light"] .np-item:hover, html[data-theme="light"] .a-row:hover,
+  html[data-theme="light"] .nav-item:hover{background:rgba(15,30,70,0.04);}
+  html[data-theme="light"] .nav-item.active{color:var(--accent-strong);}
+  html[data-theme="light"] .nav-item.active .ic{color:var(--accent-strong);}
+  html[data-theme="light"] .pf-pill{color:#5b3fd6;}
 </style>
 </head>
 <body>
@@ -210,6 +848,7 @@
   </svg>
 </div>
 
+<div class="shell">
 <div class="app">
   <header>
     <div class="brand">
@@ -224,74 +863,341 @@
 
   <!-- ---------------- HOME VIEW ---------------- -->
   <div id="homeView">
-    <div class="hero">
-      <div class="wave" id="wave">
-        <span></span><span></span><span></span><span></span><span></span><span></span><span></span>
+    <!-- mobile / tablet layout (unchanged) -->
+    <div class="home-mobile">
+      <div class="hero">
+        <div class="wave" id="wave">
+          <span></span><span></span><span></span><span></span><span></span><span></span><span></span>
+        </div>
+        <h2 class="heading">Hey there!</h2>
+        <p class="status-line" id="statusLine">Check stock, expiry or sales — just speak!</p>
       </div>
-      <h2 class="heading">Hey there!</h2>
-      <p class="status-line" id="statusLine">Check stock, expiry or sales — just speak!</p>
+
+      <div class="otp-banner" id="otpSection" style="display:none;">
+        <div class="otp-banner-head">
+          <svg class="ic" viewBox="0 0 20 20"><rect x="4" y="9" width="12" height="8" rx="2"/><path d="M7 9V6a3 3 0 0 1 6 0v3"/></svg>
+          <span>Delivery OTP — share only with delivery partner</span>
+        </div>
+        <div id="otpList"></div>
+      </div>
+
+      <div class="list">
+        <div>
+          <div class="row stop" id="stopRow">
+            <div class="row-icon"><svg class="ic" viewBox="0 0 20 20"><rect x="5" y="5" width="10" height="10" rx="2"/></svg></div>
+            <div class="row-text"><div class="title">Stop</div><div class="sub">End the listening mode</div></div>
+            <div class="chevron"><svg class="ic" viewBox="0 0 20 20"><path d="M7 4l6 6-6 6"/></svg></div>
+          </div>
+        </div>
+        <div>
+          <div class="row resume disabled" id="resumeRow">
+            <div class="row-icon"><svg class="ic" viewBox="0 0 20 20"><path d="M6 4l9 6-9 6z"/></svg></div>
+            <div class="row-text"><div class="title">Resume</div><div class="sub">Continue listening</div></div>
+            <div class="chevron"><svg class="ic" viewBox="0 0 20 20"><path d="M7 4l6 6-6 6"/></svg></div>
+          </div>
+        </div>
+        <div>
+          <div class="row convo" id="convoRow">
+            <div class="row-icon"><svg class="ic" viewBox="0 0 20 20"><path d="M3 5h14v8H8l-3 3v-3H3z"/></svg></div>
+            <div class="row-text"><div class="title">Conversation</div><div class="sub">Talk &amp; get stock info</div></div>
+            <div class="chevron" id="convoChevron"><svg class="ic" viewBox="0 0 20 20"><path d="M7 4l6 6-6 6"/></svg></div>
+          </div>
+          <div class="panel" id="convoPanel">
+            <div class="panel-inner" id="transcript">
+              <div class="empty-note">Nothing said yet — start talking and it'll show up here.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <p class="tagline">SMART · FAST · EASY</p>
     </div>
 
-    <div class="list">
-      <div>
-        <div class="row stop" id="stopRow">
-          <div class="row-icon">⏹️</div>
-          <div class="row-text"><div class="title">Stop</div><div class="sub">End the listening mode</div></div>
-          <div class="chevron">›</div>
+    <!-- desktop dashboard layout -->
+    <div class="home-desktop">
+      <div class="dash-top">
+        <div>
+          <h2 class="dash-greet heading" id="dashGreet">Hello 👋</h2>
+          <p class="dash-sub">Your AI voice assistant is ready. Ask about your stocks, inventory, orders or anything related to your business.</p>
+        </div>
+        <div class="dash-tools">
+          <div class="dash-status-pill" id="dashStatusPill"><span class="dot"></span><span id="dashStatusPillText">Connecting…</span></div>
+          <button class="icon-btn" id="tMicBtn" title="Toggle microphone"><svg class="ic" viewBox="0 0 20 20"><path d="M10 3a3 3 0 0 1 3 3v4a3 3 0 0 1-6 0V6a3 3 0 0 1 3-3z"/><path d="M5 9v1a5 5 0 0 0 10 0V9"/><path d="M10 15v2"/></svg></button>
+          <div class="notif-wrap">
+            <button class="icon-btn" id="bellBtn" title="Notifications"><svg class="ic" viewBox="0 0 20 20"><path d="M5 8a5 5 0 0 1 10 0c0 5 2 6 2 6H3s2-1 2-6"/><path d="M8.5 17a1.8 1.8 0 0 0 3 0"/></svg><span class="notif-count" id="notifCount" hidden>0</span></button>
+            <div class="notif-panel" id="notifPanel">
+              <div class="np-head"><span>Notifications</span><button class="np-clear" id="notifReadAll">Mark all read</button></div>
+              <div class="np-list" id="notifList"><div class="empty-note">No notifications yet.</div></div>
+            </div>
+          </div>
+          <div class="dash-user"><div class="dash-avatar" id="dashAvatar">U</div><div><div class="n" id="dashUserName">Account</div><div class="r">Owner</div></div></div>
         </div>
       </div>
-      <div>
-        <div class="row resume disabled" id="resumeRow">
-          <div class="row-icon">▶️</div>
-          <div class="row-text"><div class="title">Resume</div><div class="sub">Continue listening</div></div>
-          <div class="chevron">›</div>
+
+      <div class="otp-banner" id="otpSectionDesktop" style="display:none;">
+        <div class="otp-banner-head">
+          <svg class="ic" viewBox="0 0 20 20"><rect x="4" y="9" width="12" height="8" rx="2"/><path d="M7 9V6a3 3 0 0 1 6 0v3"/></svg>
+          <span>Delivery OTP — share only with delivery partner</span>
+        </div>
+        <div id="otpListDesktop"></div>
+      </div>
+
+      <div class="dash-hero">
+        <button class="dash-mic" id="dMicBtn" title="Tap to speak"><svg class="ic" viewBox="0 0 20 20"><path d="M10 3a3 3 0 0 1 3 3v4a3 3 0 0 1-6 0V6a3 3 0 0 1 3-3z"/><path d="M5 9v1a5 5 0 0 0 10 0V9"/><path d="M10 15v2"/></svg></button>
+        <div class="dash-hero-info">
+          <div class="dash-hero-title">Tap to speak or type your message</div>
+          <p class="status-line" id="dStatusLine">"Show me current stock of rice"</p>
+          <div class="dash-chips">
+            <button class="dchip" id="dChipConvo"><svg class="ic" viewBox="0 0 20 20"><path d="M3 5h14v8H8l-3 3v-3H3z"/></svg>Conversation</button>
+          </div>
+          <p class="dash-hint" id="dashHint"></p>
+          <div class="panel" id="dConvoPanel" style="margin-top:8px;">
+            <div class="panel-inner" id="dTranscript">
+              <div class="empty-note">Nothing said yet — start talking and it'll show up here.</div>
+            </div>
+          </div>
+        </div>
+        <div class="hwave" id="dWave"></div>
+        <div class="dash-hero-right">
+          <div class="gear" title="Settings">⚙️</div>
         </div>
       </div>
-      <div>
-        <div class="row convo" id="convoRow">
-          <div class="row-icon">💬</div>
-          <div class="row-text"><div class="title">Conversation</div><div class="sub">Talk &amp; get stock info</div></div>
-          <div class="chevron" id="convoChevron">›</div>
+
+      <div class="dash-sec-head">
+        <h3 class="dash-sec-title"><svg class="ic" viewBox="0 0 20 20"><path d="M11 2 4 11h5l-1 7 7-9h-5z"/></svg>Quick Access</h3>
+        <button class="dash-link" id="quickViewAll">View all →</button>
+      </div>
+      <div class="dash-quick-grid">
+        <button class="dash-quick-card" id="qCardStock">
+          <div class="dash-quick-icon blue"><svg class="ic" viewBox="0 0 20 20"><path d="M10 2 3 6v8l7 4 7-4V6z"/><path d="M3 6l7 4 7-4"/><path d="M10 10v8"/></svg></div>
+          <div class="dash-quick-text"><div class="t">Check Stock</div><div class="s">View current stock levels and low stock alerts</div></div>
+          <span class="dash-quick-arrow"><svg class="ic" viewBox="0 0 20 20"><path d="M7 4l6 6-6 6"/></svg></span>
+        </button>
+        <button class="dash-quick-card" id="qCardAdd">
+          <div class="dash-quick-icon green"><svg class="ic" viewBox="0 0 20 20"><circle cx="10" cy="10" r="7.5"/><path d="M10 6v8M6 10h8"/></svg></div>
+          <div class="dash-quick-text"><div class="t">Add Product</div><div class="s">Add new product to inventory</div></div>
+          <span class="dash-quick-arrow"><svg class="ic" viewBox="0 0 20 20"><path d="M7 4l6 6-6 6"/></svg></span>
+        </button>
+        <button class="dash-quick-card" id="qCardWholesaler">
+          <div class="dash-quick-icon purple"><svg class="ic" viewBox="0 0 20 20"><rect x="1" y="6" width="10" height="7"/><path d="M11 9h4l3 3v1h-7z"/><circle cx="5" cy="15" r="1.5"/><circle cx="15" cy="15" r="1.5"/></svg></div>
+          <div class="dash-quick-text"><div class="t">Wholesaler Info</div><div class="s">View suppliers and rates</div></div>
+          <span class="dash-quick-arrow"><svg class="ic" viewBox="0 0 20 20"><path d="M7 4l6 6-6 6"/></svg></span>
+        </button>
+        <button class="dash-quick-card" id="qCardOtp">
+          <div class="dash-quick-icon orange"><svg class="ic" viewBox="0 0 20 20"><path d="M10 2 3 6v8l7 4 7-4V6z"/><path d="M3 6l7 4 7-4"/></svg></div>
+          <div class="dash-quick-text"><div class="t">Delivery Status</div><div class="s">Track your incoming orders</div></div>
+          <span class="dash-quick-arrow"><svg class="ic" viewBox="0 0 20 20"><path d="M7 4l6 6-6 6"/></svg></span>
+        </button>
+      </div>
+
+      <div class="dash-cols">
+        <div class="dash-panel">
+          <div class="dash-panel-head">
+            <h3 class="dash-sec-title"><svg class="ic" viewBox="0 0 20 20"><path d="M3 9.5 10 3l7 6.5"/><path d="M5 8v8h10V8"/></svg>Recent Activity</h3>
+            <button class="dash-link" id="dashViewAll">View all →</button>
+          </div>
+          <div id="dashActivityList"></div>
         </div>
-        <div class="panel" id="convoPanel">
-          <div class="panel-inner" id="transcript">
-            <div class="empty-note">Nothing said yet — start talking and it'll show up here.</div>
+        <div class="dash-panel">
+          <div class="dash-panel-head">
+            <h3 class="dash-sec-title"><svg class="ic" viewBox="0 0 20 20"><path d="M10 2l1.6 4.4L16 8l-4.4 1.6L10 14l-1.6-4.4L4 8l4.4-1.6z"/></svg>Suggested Commands</h3>
+          </div>
+          <div class="dash-suggest-list">
+            <div class="dash-suggest-item" data-say="&quot;Show me current stock&quot;"><div class="mic"><svg class="ic" viewBox="0 0 20 20"><path d="M10 3a3 3 0 0 1 3 3v4a3 3 0 0 1-6 0V6a3 3 0 0 1 3-3z"/><path d="M5 9v1a5 5 0 0 0 10 0V9"/><path d="M10 15v2"/></svg></div><div class="tx"><div class="t">"Show me current stock"</div><div class="s">Get real-time inventory levels</div></div><div class="chev"><svg class="ic" viewBox="0 0 20 20"><path d="M7 4l6 6-6 6"/></svg></div></div>
+            <div class="dash-suggest-item" data-say="&quot;Add 20 packets of Maggi&quot;"><div class="mic"><svg class="ic" viewBox="0 0 20 20"><path d="M10 3a3 3 0 0 1 3 3v4a3 3 0 0 1-6 0V6a3 3 0 0 1 3-3z"/><path d="M5 9v1a5 5 0 0 0 10 0V9"/><path d="M10 15v2"/></svg></div><div class="tx"><div class="t">"Add 20 packets of Maggi"</div><div class="s">Quick-add to inventory</div></div><div class="chev"><svg class="ic" viewBox="0 0 20 20"><path d="M7 4l6 6-6 6"/></svg></div></div>
+            <div class="dash-suggest-item" data-say="&quot;Show recent sales&quot;"><div class="mic"><svg class="ic" viewBox="0 0 20 20"><path d="M10 3a3 3 0 0 1 3 3v4a3 3 0 0 1-6 0V6a3 3 0 0 1 3-3z"/><path d="M5 9v1a5 5 0 0 0 10 0V9"/><path d="M10 15v2"/></svg></div><div class="tx"><div class="t">"Show recent sales"</div><div class="s">View latest transactions</div></div><div class="chev"><svg class="ic" viewBox="0 0 20 20"><path d="M7 4l6 6-6 6"/></svg></div></div>
+            <div class="dash-suggest-item" data-say="&quot;Tell me about salt supplier&quot;"><div class="mic"><svg class="ic" viewBox="0 0 20 20"><path d="M10 3a3 3 0 0 1 3 3v4a3 3 0 0 1-6 0V6a3 3 0 0 1 3-3z"/><path d="M5 9v1a5 5 0 0 0 10 0V9"/><path d="M10 15v2"/></svg></div><div class="tx"><div class="t">"Tell me about salt supplier"</div><div class="s">Get wholesaler details</div></div><div class="chev"><svg class="ic" viewBox="0 0 20 20"><path d="M7 4l6 6-6 6"/></svg></div></div>
           </div>
         </div>
       </div>
     </div>
-
-    <p class="tagline">SMART • FAST • EASY</p>
   </div>
 
   <!-- ---------------- STOCKS VIEW ---------------- -->
   <div id="stocksView" style="display:none;">
     <h2 class="view-title heading">Inventory</h2>
-    <div class="stock-status" id="stockStatus"></div>
-    <div class="stock-grid" id="stockGrid"></div>
+    <div class="toolbar">
+      <div class="search-box">
+        <svg class="ic" viewBox="0 0 20 20"><circle cx="8.5" cy="8.5" r="5.5"/><path d="M17 17l-4-4"/></svg>
+        <input id="stockSearch" placeholder="Search products...">
+      </div>
+      <button class="chip-btn" id="lowFilterBtn">
+        <svg class="ic" viewBox="0 0 20 20"><path d="M3 5h14"/><circle cx="8" cy="5" r="2"/><path d="M3 10h14"/><circle cx="13" cy="10" r="2"/><path d="M3 15h14"/><circle cx="6" cy="15" r="2"/></svg>
+        Low
+      </button>
+    </div>
+    <div class="stock-status" id="stockStatus" style="font-size:var(--fs-2xs);color:var(--text-faint);min-height:1em;margin-bottom:6px;"></div>
+    <div id="stockList"></div>
   </div>
 
-  <!-- ---------------- HISTORY VIEW (placeholder) ---------------- -->
+  <!-- ---------------- HISTORY VIEW ---------------- -->
   <div id="historyView" style="display:none;">
     <h2 class="view-title heading">History</h2>
-    <p class="empty-note">Sales history coming soon.</p>
+
+    <div class="seg">
+      <button class="seg-btn active" data-tab="added">Item Added</button>
+      <button class="seg-btn" data-tab="sold">Item Sold</button>
+    </div>
+
+    <div id="addedSection">
+      <div class="chip-row">
+        <button class="chip active" data-subtab="wholesaler">From Wholesaler</button>
+        <button class="chip" data-subtab="manual">From Own Inventory</button>
+      </div>
+      <div id="addedWholesalerList"></div>
+      <div id="addedManualList" style="display:none;"></div>
+    </div>
+
+    <div id="soldSection" style="display:none;">
+      <div id="soldList"></div>
+    </div>
   </div>
 
   <!-- ---------------- PROFILE VIEW (placeholder) ---------------- -->
   <div id="profileView" style="display:none;">
     <h2 class="view-title heading">Profile</h2>
-    <p class="empty-note">Profile settings coming soon.</p>
+    <p class="pf-sub">Manage your account, business and preferences.</p>
+    <div id="pfRoot"><div class="pf-loading">Loading profile…</div></div>
   </div>
 </div>
 
+<!-- ---------------- SHARED DETAIL DRAWER ---------------- -->
+<div class="toast-stack" id="toastStack"></div>
+<div class="overlay" id="overlay"></div>
+<div class="drawer" id="drawer">
+  <div class="drawer-handle"></div>
+  <div class="drawer-header">
+    <div class="dh-title-wrap" id="drawerHeader"></div>
+    <div class="drawer-close" id="drawerClose"><svg class="ic" viewBox="0 0 20 20"><path d="M5 5l10 10"/><path d="M15 5L5 15"/></svg></div>
+  </div>
+  <div class="drawer-body" id="drawerBody"></div>
+</div>
+
 <div class="navbar">
-  <button class="nav-item active" data-view="home"><span>🏠</span>Home<div class="nav-underline"></div></button>
-  <button class="nav-item" data-view="stocks"><span>📊</span>Stocks<div class="nav-underline"></div></button>
-  <button class="nav-item" data-view="history"><span>🕐</span>History<div class="nav-underline"></div></button>
-  <button class="nav-item" data-view="profile"><span>👤</span>Profile<div class="nav-underline"></div></button>
+  <div class="sidebar-brand">
+    <svg class="logo" viewBox="0 0 40 40" aria-hidden="true">
+      <defs><linearGradient id="lg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#4fa8ff"/><stop offset="1" stop-color="#9b6bff"/></linearGradient></defs>
+      <g fill="url(#lg)">
+        <rect x="3" y="15" width="3.6" height="10" rx="1.8"/><rect x="9.5" y="9" width="3.6" height="22" rx="1.8"/>
+        <rect x="16" y="3" width="3.6" height="34" rx="1.8"/><rect x="22.5" y="10" width="3.6" height="20" rx="1.8"/>
+        <rect x="29" y="6" width="3.6" height="28" rx="1.8"/><rect x="35" y="14" width="3" height="12" rx="1.5"/>
+      </g>
+    </svg>
+    <div>
+      <h1><span class="voice">Voice</span><span class="stock">Stock</span></h1>
+      <p>Your Voice. Your Stocks.</p>
+    </div>
+  </div>
+  <button class="nav-item active" data-view="home">
+    <svg class="ic" viewBox="0 0 20 20"><path d="M3 9.5 10 3l7 6.5"/><path d="M5 8v8a1 1 0 0 0 1 1h3v-5h2v5h3a1 1 0 0 0 1-1V8"/></svg>
+    Home<div class="nav-underline"></div>
+  </button>
+  <button class="nav-item" data-view="stocks">
+    <svg class="ic" viewBox="0 0 20 20"><path d="M10 2 3 6v8l7 4 7-4V6z"/><path d="M3 6l7 4 7-4"/><path d="M10 10v8"/></svg>
+    Stocks<div class="nav-underline"></div>
+  </button>
+  <button class="nav-item" data-view="history">
+    <svg class="ic" viewBox="0 0 20 20"><circle cx="10" cy="10" r="7"/><path d="M10 6v4l3 2"/></svg>
+    History<div class="nav-underline"></div>
+  </button>
+  <button class="nav-item" data-view="profile">
+    <svg class="ic" viewBox="0 0 20 20"><circle cx="10" cy="7" r="3"/><path d="M4 17c0-3 2.5-5 6-5s6 2 6 5"/></svg>
+    Profile<div class="nav-underline"></div>
+  </button>
+  <div class="upgrade-card">
+    <div class="up-head">
+      <svg class="ic" viewBox="0 0 20 20"><path d="M10 2l1.6 4.4L16 8l-4.4 1.6L10 14l-1.6-4.4L4 8l4.4-1.6z"/></svg>
+      <div><div class="up-t">Upgrade to Pro</div><div class="up-s">Get advanced analytics, voice history &amp; more.</div></div>
+    </div>
+    <button type="button" class="up-btn">Upgrade</button>
+  </div>
+</div>
 </div>
 
 <script>
+// Login check — agar account_id nahi mila to login page par bhej do
+const SHOP_ID = localStorage.getItem("account_id");
+if (!SHOP_ID) {
+  window.location.href = "/login";
+}
+
+/* ---------------- PREFERENCES (synced with backend /profile/settings) ---------------- */
+const PREFS_KEY = `vs_prefs_${SHOP_ID}`;
+const PREF_DEFAULTS = {
+  notifications: { low_stock: true, new_order: false, delivery: true, wholesaler: true, sound: true, vibration: true },
+  voice: { enabled: true, voice: "matthew", language: "auto" },
+  appearance: { theme: "dark", density: "comfortable", accent: "blue" }
+};
+const ACCENTS = {
+  blue: ["#4fa8ff", "#2e8aef"], purple: ["#9b6bff", "#7a4ee0"], teal: ["#22c7b8", "#12a89a"],
+  orange: ["#ff9f43", "#f08522"], pink: ["#ff5fae", "#e8438f"]
+};
+function mergePrefs(src) {
+  const out = JSON.parse(JSON.stringify(PREF_DEFAULTS));
+  for (const g in out) {
+    const given = src && src[g];
+    if (!given || typeof given !== "object") continue;
+    for (const k in out[g]) {
+      if (k in given && typeof given[k] === typeof out[g][k]) out[g][k] = given[k];
+    }
+  }
+  return out;
+}
+let prefs;
+try { prefs = mergePrefs(JSON.parse(localStorage.getItem(PREFS_KEY) || "{}")); } catch (e) { prefs = mergePrefs({}); }
+function savePrefsLocal() { try { localStorage.setItem(PREFS_KEY, JSON.stringify(prefs)); } catch (e) {} }
+function applyAppearance(a) {
+  const r = document.documentElement;
+  r.dataset.theme = a.theme === "light" ? "light" : "dark";
+  r.dataset.density = a.density === "compact" ? "compact" : "comfortable";
+  const c = ACCENTS[a.accent] || ACCENTS.blue;
+  r.style.setProperty("--accent", c[0]);
+  r.style.setProperty("--accent-strong", c[1]);
+  const n = parseInt(c[0].slice(1), 16);
+  r.style.setProperty("--accent-dim", `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},0.13)`);
+}
+applyAppearance(prefs.appearance);
+
+// which notification switch controls which kind of notification
+function notifEnabled(type) {
+  const map = { cancelled: "wholesaler", placed: "new_order", confirmed: "wholesaler", accepted: "delivery", delivered: "delivery", lowstock: "low_stock" };
+  const k = map[type];
+  return k ? prefs.notifications[k] !== false : true;
+}
+let _actx = null;
+function notifySound() {
+  if (prefs.notifications.sound) {
+    try {
+      _actx = _actx || new (window.AudioContext || window.webkitAudioContext)();
+      if (_actx.state === "suspended") _actx.resume();
+      const t = _actx.currentTime;
+      [880, 1175].forEach((f, i) => {
+        const o = _actx.createOscillator(), g = _actx.createGain(), s = t + i * 0.14;
+        o.type = "sine"; o.frequency.value = f;
+        g.gain.setValueAtTime(0.0001, s);
+        g.gain.exponentialRampToValueAtTime(0.15, s + 0.02);
+        g.gain.exponentialRampToValueAtTime(0.0001, s + 0.18);
+        o.connect(g); g.connect(_actx.destination);
+        o.start(s); o.stop(s + 0.2);
+      });
+    } catch (e) {}
+  }
+  if (prefs.notifications.vibration && navigator.vibrate) {
+    try { navigator.vibrate([120, 60, 120]); } catch (e) {}
+  }
+}
+// small status toast (no sound): used for "Saved", errors, etc.
+function flash(title, sub, kind) {
+  const stack = document.getElementById("toastStack");
+  if (!stack) return;
+  const el = document.createElement("div");
+  el.className = "toast" + (kind ? " " + kind : "");
+  el.innerHTML = `<div class="tt"></div><div class="ts"></div>`;
+  el.querySelector(".tt").textContent = title;
+  el.querySelector(".ts").textContent = sub || "";
+  stack.appendChild(el);
+  setTimeout(() => el.remove(), 4500);
+}
 let ws, audioContext, processor, source, stream;
 let playbackContext, nextStartTime = 0;
 let manuallyStopped = false;
@@ -307,11 +1213,92 @@ const convoRow = document.getElementById("convoRow");
 const convoPanel = document.getElementById("convoPanel");
 const convoChevron = document.getElementById("convoChevron");
 
+/* ---------------- SHARED DRAWER ---------------- */
+const overlay = document.getElementById("overlay");
+const drawer = document.getElementById("drawer");
+const drawerHeader = document.getElementById("drawerHeader");
+const drawerBody = document.getElementById("drawerBody");
+const drawerClose = document.getElementById("drawerClose");
+
+function openDrawer(headerHtml, bodyHtml) {
+  drawerHeader.innerHTML = headerHtml;
+  drawerBody.innerHTML = bodyHtml;
+  overlay.classList.add("open");
+  drawer.classList.add("open");
+}
+function closeDrawer() {
+  overlay.classList.remove("open");
+  drawer.classList.remove("open");
+}
+overlay.addEventListener("click", closeDrawer);
+drawerClose.addEventListener("click", closeDrawer);
+
+function initials(name) {
+  return (name || "?").trim().slice(0, 1).toUpperCase();
+}
+function fmtDate(iso) {
+  if (!iso) return null;
+  return new Date(iso + "Z").toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+}
+function fmtDateFull(iso) {
+  if (!iso) return "—";
+  return new Date(iso + "Z").toLocaleString();
+}
+
+/* ---------------- OTP banner ---------------- */
+function otpRowsHtml(orders) {
+  return orders.map(o => `
+    <div class="otp-row">
+      <div class="otp-row-info">
+        <div class="t">${o.product_name} × ${o.quantity}</div>
+        <div class="s">Order #${o.id}</div>
+      </div>
+      <div class="otp-code">${o.otp}</div>
+    </div>
+  `).join("");
+}
+async function checkPendingOtp() {
+  try {
+    const res = await fetch(`/retailer/pending-otp?retailer_id=${SHOP_ID}`);
+    const orders = await res.json();
+    const section = document.getElementById("otpSection");
+    const list = document.getElementById("otpList");
+    const sectionD = document.getElementById("otpSectionDesktop");
+    const listD = document.getElementById("otpListDesktop");
+    if (!orders.length) {
+      section.style.display = "none"; list.innerHTML = "";
+      if (sectionD) { sectionD.style.display = "none"; listD.innerHTML = ""; }
+      return;
+    }
+    section.style.display = "block";
+    list.innerHTML = otpRowsHtml(orders);
+    if (sectionD) { sectionD.style.display = "block"; listD.innerHTML = otpRowsHtml(orders); }
+  } catch (e) {}
+}
+checkPendingOtp();
+setInterval(checkPendingOtp, 5000);
+
+const dStatusLine = document.getElementById("dStatusLine");
+const dMicBtn = document.getElementById("dMicBtn");
+const dWave = document.getElementById("dWave");
+const dashStatusPill = document.getElementById("dashStatusPill");
+const dashStatusPillText = document.getElementById("dashStatusPillText");
+
+let isListening = false;
 function setStatus(state, text) {
+  isListening = state === "connected";
   statusLine.innerText = text;
   wave.classList.toggle("active", state === "connected");
   stopRow.classList.toggle("disabled", state !== "connected");
   resumeRow.classList.toggle("disabled", state === "connected");
+
+  if (dStatusLine) dStatusLine.innerText = text;
+  if (dWave) dWave.classList.toggle("active", state === "connected");
+  if (dMicBtn) dMicBtn.classList.toggle("listening", state === "connected");
+  if (dashStatusPill) {
+    dashStatusPill.classList.toggle("on", state === "connected");
+    dashStatusPillText.innerText = state === "connected" ? "Listening" : (state === "connecting" ? "Connecting…" : "Paused");
+  }
 }
 
 function addBubble(role, text) {
@@ -321,13 +1308,300 @@ function addBubble(role, text) {
   div.innerText = text;
   transcriptEl.appendChild(div);
   transcriptEl.scrollTop = transcriptEl.scrollHeight;
+
+  const dTranscriptEl = document.getElementById("dTranscript");
+  if (dTranscriptEl) {
+    if (!dTranscriptEl.dataset.hasTranscript) { dTranscriptEl.innerHTML = ""; dTranscriptEl.dataset.hasTranscript = "1"; }
+    const div2 = document.createElement("div");
+    div2.className = "bubble " + (role === "assistant" ? "assistant" : "user");
+    div2.innerText = text;
+    dTranscriptEl.appendChild(div2);
+    dTranscriptEl.scrollTop = dTranscriptEl.scrollHeight;
+  }
 }
 
 convoRow.onclick = () => {
   const isOpen = convoPanel.classList.toggle("open");
   convoRow.classList.toggle("open", isOpen);
-  convoChevron.innerText = isOpen ? "⌄" : "›";
 };
+
+/* ---------------- DESKTOP DASHBOARD WIRING ---------------- */
+const dashGreet = document.getElementById("dashGreet");
+const accName = (localStorage.getItem("account_name") || "").trim();
+if (dashGreet) {
+  dashGreet.textContent = "Hello ";
+  if (accName) {
+    const sp = document.createElement("span");
+    sp.className = "nm"; sp.textContent = accName;
+    dashGreet.appendChild(sp);
+  } else {
+    dashGreet.appendChild(document.createTextNode("there"));
+  }
+  dashGreet.appendChild(document.createTextNode(" 👋"));
+}
+const dashAvatar = document.getElementById("dashAvatar");
+if (dashAvatar) dashAvatar.textContent = (accName || "U").slice(0, 1).toUpperCase();
+const dashUserName = document.getElementById("dashUserName");
+if (dashUserName) dashUserName.textContent = accName || "Account";
+(function buildWave() {
+  const w = document.getElementById("dWave");
+  if (!w) return;
+  const n = 34;
+  for (let i = 0; i < n; i++) {
+    const peak = Math.exp(-Math.pow(i - n * 0.42, 2) / (2 * Math.pow(n * 0.17, 2)));
+    const jitter = 0.55 + 0.45 * Math.abs(Math.sin(i * 1.9));
+    const h = Math.max(4, Math.round(5 + 40 * peak * jitter));
+    const s = document.createElement("span");
+    s.style.setProperty("--h", h + "px");
+    s.style.setProperty("--d", ((i * 0.07) % 1).toFixed(2) + "s");
+    s.style.background = `hsl(${218 + (i / n) * 55} 92% 63%)`;
+    w.appendChild(s);
+  }
+})();
+
+function goToView(view, opts) {
+  opts = opts || {};
+  const navBtn = document.querySelector(`.nav-item[data-view="${view}"]`);
+  if (navBtn) navBtn.click();
+  if (view === "history") {
+    if (opts.historyTab) {
+      const segBtn = document.querySelector(`.seg-btn[data-tab="${opts.historyTab}"]`);
+      if (segBtn) segBtn.click();
+    }
+    if (opts.historySubtab) {
+      const chipBtn = document.querySelector(`.chip[data-subtab="${opts.historySubtab}"]`);
+      if (chipBtn) chipBtn.click();
+    }
+  }
+}
+
+document.getElementById("dMicBtn")?.addEventListener("click", () => {
+  if (isListening) {
+    stopRow.click();
+  } else {
+    resumeRow.classList.remove("disabled");
+    resumeRow.click();
+  }
+});
+
+document.getElementById("dChipConvo")?.addEventListener("click", () => {
+  document.getElementById("dConvoPanel").classList.toggle("open");
+});
+document.getElementById("dChipStock")?.addEventListener("click", () => goToView("stocks"));
+document.getElementById("dChipSold")?.addEventListener("click", () => goToView("history", { historyTab: "sold" }));
+document.getElementById("dChipWholesaler")?.addEventListener("click", () => goToView("history", { historyTab: "added", historySubtab: "wholesaler" }));
+
+function showHint(t) {
+  const h = document.getElementById("dashHint");
+  if (h) h.innerText = t;
+}
+function goDelivery() {
+  const otp = document.getElementById("otpSectionDesktop");
+  if (otp && otp.style.display !== "none") {
+    goToView("home");
+    otp.scrollIntoView({ behavior: "smooth", block: "center" });
+  } else {
+    goToView("history", { historyTab: "added", historySubtab: "wholesaler" });
+  }
+}
+const addHint = 'Try saying: "Add 20 packets of Maggi"';
+document.getElementById("qCardStock")?.addEventListener("click", () => goToView("stocks"));
+document.getElementById("qCardAdd")?.addEventListener("click", () => showHint(addHint));
+document.getElementById("qCardWholesaler")?.addEventListener("click", () => goToView("history", { historyTab: "added", historySubtab: "wholesaler" }));
+document.getElementById("qCardOtp")?.addEventListener("click", goDelivery);
+document.getElementById("dChipAdd")?.addEventListener("click", () => showHint(addHint));
+document.getElementById("dChipDelivery")?.addEventListener("click", goDelivery);
+document.getElementById("dashViewAll")?.addEventListener("click", () => goToView("history"));
+document.getElementById("quickViewAll")?.addEventListener("click", () => goToView("stocks"));
+document.querySelectorAll(".dash-suggest-item").forEach(el => {
+  el.addEventListener("click", () => showHint("Try saying: " + el.dataset.say));
+});
+document.getElementById("tMicBtn")?.addEventListener("click", () => document.getElementById("dMicBtn").click());
+
+function fmtWhen(iso) {
+  if (!iso) return "";
+  const d = new Date(iso + "Z"), now = new Date();
+  const y = new Date(now); y.setDate(now.getDate() - 1);
+  if (d.toDateString() === now.toDateString()) return d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+  if (d.toDateString() === y.toDateString()) return "Yesterday";
+  return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
+const A_ICON = {
+  plus: '<svg class="ic" viewBox="0 0 20 20"><path d="M10 4v12M4 10h12"/></svg>',
+  cart: '<svg class="ic" viewBox="0 0 20 20"><circle cx="7" cy="17" r="1.3"/><circle cx="14" cy="17" r="1.3"/><path d="M2 3h2l2 11h9l2-7H5"/></svg>',
+  truck: '<svg class="ic" viewBox="0 0 20 20"><rect x="1" y="6" width="10" height="7"/><path d="M11 9h4l3 3v1h-7z"/><circle cx="5" cy="15" r="1.5"/><circle cx="15" cy="15" r="1.5"/></svg>',
+  box: '<svg class="ic" viewBox="0 0 20 20"><path d="M10 2 3 6v8l7 4 7-4V6z"/><path d="M3 6l7 4 7-4"/><path d="M10 10v8"/></svg>'
+};
+function renderDashboardActivity() {
+  const container = document.getElementById("dashActivityList");
+  if (!container || !historyData) return;
+
+  let items = [];
+  historyData.item_added_wholesaler.forEach(o => {
+    const done = !!o.delivered_at;
+    items.push({
+      time: o.delivered_at || o.placed_at, ico: done ? "green" : "orange", svg: done ? A_ICON.plus : A_ICON.box,
+      title: `${o.product_name} × ${o.quantity} ${done ? "received" : "ordered"}`,
+      sub: `From ${o.wholesaler_name || "Wholesaler"} <i></i> ${done ? "Added to inventory" : "On the way"}`,
+      pill: done ? "success" : "transit", ptxt: done ? "Delivered" : "In Transit",
+      onClick: () => openWholesalerDetail(o)
+    });
+  });
+  historyData.item_added_manual.forEach(b => {
+    items.push({
+      time: b.added_at, ico: "purple", svg: A_ICON.truck,
+      title: `${b.product_name} × ${b.quantity} added`, sub: `Own inventory <i></i> Inventory`,
+      pill: "success", ptxt: "Added", onClick: () => openSimpleDetail(b, "manual")
+    });
+  });
+  historyData.item_sold.forEach(s => {
+    items.push({
+      time: s.sold_at, ico: "pink", svg: A_ICON.cart,
+      title: `${s.product_name} × ${s.quantity} sold`, sub: `To Customer <i></i> Sales`,
+      pill: "sold", ptxt: "Sold", onClick: () => openSimpleDetail(s, "sold")
+    });
+  });
+  items.sort((a, b) => new Date((b.time || 0) + "Z") - new Date((a.time || 0) + "Z"));
+  items = items.slice(0, 5);
+
+  if (!items.length) {
+    container.innerHTML = "<p class='empty-note'>Nothing yet — activity will show up here as you use the app.</p>";
+    return;
+  }
+  container.innerHTML = items.map(it => `
+    <div class="a-row">
+      <div class="a-ico ${it.ico}">${it.svg}</div>
+      <div class="a-info"><div class="a-t">${it.title}</div><div class="a-s">${it.sub}</div></div>
+      <div class="a-time">${fmtWhen(it.time)}</div>
+      <span class="a-pill ${it.pill}">${it.ptxt}</span>
+    </div>`).join("");
+  container.querySelectorAll(".a-row").forEach((el, i) => el.addEventListener("click", items[i].onClick));
+}
+
+/* ---------------- NOTIFICATIONS (wholesaler order updates) ---------------- */
+const NOTIF_KEY = `vs_notifs_${SHOP_ID}`;
+const SEEN_KEY = `vs_seen_${SHOP_ID}`;
+let notifs = [];
+try { notifs = JSON.parse(localStorage.getItem(NOTIF_KEY) || "[]"); } catch (e) { notifs = []; }
+const NOTIF_ICON = {
+  cancelled: '<svg class="ic" viewBox="0 0 20 20"><path d="M5 5l10 10M15 5L5 15"/></svg>',
+  placed: '<svg class="ic" viewBox="0 0 20 20"><circle cx="7" cy="17" r="1.3"/><circle cx="14" cy="17" r="1.3"/><path d="M2 3h2l2 11h9l2-7H5"/></svg>',
+  lowstock: '<svg class="ic" viewBox="0 0 20 20"><path d="M10 3l8 14H2z"/><path d="M10 8v4"/><path d="M10 14.5v.1"/></svg>',
+  confirmed: '<svg class="ic" viewBox="0 0 20 20"><path d="M4 10l4 4 8-8"/></svg>',
+  accepted: '<svg class="ic" viewBox="0 0 20 20"><rect x="1" y="6" width="10" height="7"/><path d="M11 9h4l3 3v1h-7z"/><circle cx="5" cy="15" r="1.5"/><circle cx="15" cy="15" r="1.5"/></svg>',
+  delivered: '<svg class="ic" viewBox="0 0 20 20"><path d="M10 2 3 6v8l7 4 7-4V6z"/><path d="M3 6l7 4 7-4"/><path d="M10 10v8"/></svg>'
+};
+function saveNotifs() {
+  notifs = notifs.slice(0, 30);
+  try { localStorage.setItem(NOTIF_KEY, JSON.stringify(notifs)); } catch (e) {}
+}
+function orderEvents(o) {
+  const ev = [];
+  const name = `${o.product_name} × ${o.quantity}`;
+  const t = iso => (iso ? new Date(iso + "Z").getTime() : Date.now());
+  ev.push({ key: `${o.order_id}:placed`, type: "placed", oid: o.order_id, ts: t(o.placed_at),
+    title: "Order placed", sub: `${name}${o.wholesaler_name ? " · " + o.wholesaler_name : ""}` });
+  if (o.confirmed_at) ev.push({ key: `${o.order_id}:confirmed`, type: "confirmed", oid: o.order_id, ts: t(o.confirmed_at),
+    title: "Wholesaler confirmed your order", sub: `${name}${o.wholesaler_name ? " · " + o.wholesaler_name : ""}` });
+  if (o.driver_name || o.picked_up_at) ev.push({ key: `${o.order_id}:accepted`, type: "accepted", oid: o.order_id, ts: t(o.picked_up_at || o.confirmed_at),
+    title: "Delivery partner accepted your order", sub: `${name}${o.driver_name ? " · " + o.driver_name + " is on the way" : ""}` });
+  if (o.status === "cancelled") ev.push({ key: `${o.order_id}:cancelled`, type: "cancelled", oid: o.order_id, ts: t(null),
+    title: "Order cancelled by wholesaler", sub: `${name}${o.wholesaler_name ? " · " + o.wholesaler_name : ""}` });
+  if (o.delivered_at || o.status === "delivered") ev.push({ key: `${o.order_id}:delivered`, type: "delivered", oid: o.order_id, ts: t(o.delivered_at),
+    title: "Order delivered", sub: `${name} · added to your inventory` });
+  return ev;
+}
+function showToast(n) {
+  notifySound();
+  const stack = document.getElementById("toastStack");
+  if (!stack) return;
+  const el = document.createElement("div");
+  el.className = "toast";
+  el.innerHTML = `<div class="tt"></div><div class="ts"></div>`;
+  el.querySelector(".tt").textContent = n.title;
+  el.querySelector(".ts").textContent = n.sub;
+  stack.appendChild(el);
+  setTimeout(() => el.remove(), 6000);
+}
+let notifOrders = [];
+function processNotifications(orders) {
+  if (!orders) return;
+  notifOrders = orders;
+  const firstRun = localStorage.getItem(SEEN_KEY) === null;
+  let seen = [];
+  try { seen = JSON.parse(localStorage.getItem(SEEN_KEY) || "[]"); } catch (e) { seen = []; }
+  const seenSet = new Set(seen);
+  let events = [];
+  orders.forEach(o => { events = events.concat(orderEvents(o)); });
+  const fresh = events.filter(e => !seenSet.has(e.key)).sort((a, b) => a.ts - b.ts);
+  if (fresh.length) {
+    if (firstRun) {
+      // first load on this browser: show the latest few as already-read, don't pop toasts
+      fresh.filter(e => notifEnabled(e.type)).sort((a, b) => b.ts - a.ts).slice(0, 8).forEach(e => notifs.push({ ...e, read: true }));
+    } else {
+      fresh.filter(e => notifEnabled(e.type)).forEach(e => { notifs.unshift({ ...e, read: false }); showToast(e); });
+    }
+    events.forEach(e => seenSet.add(e.key));
+    localStorage.setItem(SEEN_KEY, JSON.stringify([...seenSet]));
+    notifs.sort((a, b) => b.ts - a.ts);
+    saveNotifs();
+  } else if (firstRun) {
+    localStorage.setItem(SEEN_KEY, "[]");
+  }
+  renderNotifs();
+}
+function renderNotifs() {
+  const list = document.getElementById("notifList");
+  const badge = document.getElementById("notifCount");
+  if (!list || !badge) return;
+  const unread = notifs.filter(n => !n.read).length;
+  badge.hidden = unread === 0;
+  badge.textContent = unread > 9 ? "9+" : String(unread);
+  if (!notifs.length) { list.innerHTML = "<div class='empty-note'>No notifications yet.</div>"; return; }
+  list.innerHTML = "";
+  notifs.forEach(n => {
+    const row = document.createElement("div");
+    row.className = "np-item" + (n.read ? "" : " unread");
+    row.innerHTML = `<div class="np-ico ${n.type}">${NOTIF_ICON[n.type] || ""}</div><div><div class="np-t"></div><div class="np-s"></div><div class="np-time"></div></div>`;
+    row.querySelector(".np-t").textContent = n.title;
+    row.querySelector(".np-s").textContent = n.sub;
+    row.querySelector(".np-time").textContent = fmtWhen(new Date(n.ts).toISOString().replace("Z", ""));
+    row.addEventListener("click", () => {
+      if (n.type === "lowstock") { document.getElementById("notifPanel").classList.remove("open"); goToView("stocks"); return; }
+      const o = notifOrders.find(x => x.order_id === n.oid) || (historyData && historyData.item_added_wholesaler.find(x => x.order_id === n.oid));
+      document.getElementById("notifPanel").classList.remove("open");
+      if (o) openWholesalerDetail(o);
+    });
+    list.appendChild(row);
+  });
+}
+function markAllRead() { notifs.forEach(n => n.read = true); saveNotifs(); renderNotifs(); }
+document.getElementById("bellBtn")?.addEventListener("click", (e) => {
+  e.stopPropagation();
+  const panel = document.getElementById("notifPanel");
+  const opening = !panel.classList.contains("open");
+  panel.classList.toggle("open", opening);
+  if (!opening) markAllRead();
+});
+document.getElementById("notifReadAll")?.addEventListener("click", (e) => { e.stopPropagation(); markAllRead(); });
+document.getElementById("notifPanel")?.addEventListener("click", (e) => e.stopPropagation());
+document.addEventListener("click", () => {
+  const panel = document.getElementById("notifPanel");
+  if (panel && panel.classList.contains("open")) { panel.classList.remove("open"); markAllRead(); }
+});
+renderNotifs();
+
+// Live order feed for notifications (all statuses, not just delivered).
+// Falls back to delivered-only history if the backend doesn't have /retailer/orders yet.
+async function loadOrdersForNotifs() {
+  try {
+    const res = await fetch(`/retailer/orders?retailer_id=${SHOP_ID}`);
+    if (res.ok) { processNotifications(await res.json()); return; }
+  } catch (e) {}
+  if (historyData) processNotifications(historyData.item_added_wholesaler);
+}
+loadOrdersForNotifs();
+setInterval(loadOrdersForNotifs, 5000);
 
 async function ensureMic() {
   if (!stream) stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -356,12 +1630,13 @@ async function ensureMic() {
 
 async function connect() {
   clearTimeout(reconnectTimer);
+  if (!prefs.voice.enabled) { setStatus("stopped", "Voice assistant is off — turn it on in Profile"); return; }
   manuallyStopped = false;
   setStatus("connecting", "Connecting…");
   await ensureMic();
 
-  const BACKEND_HOST = "voicestock-abinash.duckdns.org"; // live HTTPS backend
-  ws = new WebSocket(`wss://${BACKEND_HOST}/ws/voice`);
+  const wsProtocol = window.location.protocol === "https:" ? "wss" : "ws";
+  ws = new WebSocket(`${wsProtocol}://${window.location.host}/ws/voice?account_id=${SHOP_ID}`);
   ws.binaryType = "arraybuffer";
 
   ws.onopen = () => setStatus("connected", "Listening — speak anytime!");
@@ -390,7 +1665,7 @@ async function connect() {
   };
 
   ws.onclose = () => {
-    if (manuallyStopped) { setStatus("stopped", "Stopped — tap Resume to continue"); return; }
+    if (manuallyStopped) { setStatus("stopped", prefs.voice.enabled ? "Stopped — tap Resume to continue" : "Voice assistant is off — turn it on in Profile"); return; }
     setStatus("connecting", "Reconnecting…");
     reconnectTimer = setTimeout(connect, 800);
   };
@@ -408,6 +1683,7 @@ stopRow.onclick = () => {
 
 resumeRow.onclick = () => {
   if (resumeRow.classList.contains("disabled")) return;
+  if (!prefs.voice.enabled) { flash("Voice assistant is off", "Turn it on from Profile → Voice Assistant.", "bad"); return; }
   connect();
 };
 
@@ -424,8 +1700,10 @@ document.querySelectorAll(".nav-item").forEach(btn => {
     Object.values(views).forEach(id => document.getElementById(id).style.display = "none");
     const target = btn.dataset.view;
     document.getElementById(views[target]).style.display = "block";
+    closeDrawer();
 
     clearInterval(stockPoll);
+    if (target === "profile") loadProfile();
     if (target === "stocks") {
       loadStocks();
       stockPoll = setInterval(loadStocks, 15000);
@@ -433,52 +1711,852 @@ document.querySelectorAll(".nav-item").forEach(btn => {
   });
 });
 
+/* ---------------- STOCKS ---------------- */
+let allProducts = [];
+let lowOnly = false;
+let stockQuery = "";
+
+function qtyOf(p) {
+  const num = v => { const n = Number(v); return Number.isFinite(n) ? n : 0; };
+  const batches = p.batches || p.stock_batches || p.inventory_batches || [];
+  if (Array.isArray(batches) && batches.length) {
+    const sum = batches.reduce((s, b) => s + num(b.quantity ?? b.qty ?? b.remaining_quantity ?? b.current_quantity ?? b.stock), 0);
+    if (sum > 0) return sum;
+  }
+  for (const k of ["total_quantity", "quantity", "current_stock", "stock", "total_stock", "available_quantity", "qty"]) {
+    if (p[k] != null && num(p[k]) > 0) return num(p[k]);
+  }
+  return 0;
+}
+function isLow(p) { return qtyOf(p) < (p.min_stock_level ?? 0); }
+
 async function loadStocks() {
   const statusEl = document.getElementById("stockStatus");
-  const grid = document.getElementById("stockGrid");
   try {
-    const res = await fetch(`https://${BACKEND_HOST}/products`);
-    const products = await res.json();
-    grid.innerHTML = "";
-    if (!products.length) {
-      grid.innerHTML = '<div class="empty-stock">No products yet — add one by voice.</div>';
-      return;
-    }
-    for (const p of products) {
-      const qty = (p.batches || []).reduce((s, b) => s + b.quantity, 0);
-      const low = qty < (p.min_stock_level ?? 0);
-      const card = document.createElement("div");
-      card.className = "stock-card";
-      card.innerHTML = `
-        ${p.image_url
-          ? `<img class="photo" src="${p.image_url}" alt="${p.name}">`
-          : `<div class="nophoto">No photo</div>`}
-        <div class="s-name">${p.name}</div>
-        <div class="s-qty ${low ? 'low' : ''}">${qty} ${p.unit || ''}${low ? ' • low' : ''}</div>
-        <label class="s-upload">
-          ${p.image_url ? 'Change photo' : 'Add photo'}
-          <input type="file" accept="image/*" data-id="${p.id}">
-        </label>
-      `;
-      grid.appendChild(card);
-    }
-    grid.querySelectorAll("input[type=file]").forEach(inp => {
-      inp.addEventListener("change", async (e) => {
-        const file = e.target.files[0];
-        if (!file) return;
-        const id = e.target.dataset.id;
-        const fd = new FormData();
-        fd.append("file", file);
-        statusEl.innerText = "Uploading…";
-        const r = await fetch(`https://${BACKEND_HOST}/products/${id}/image`, { method: "POST", body: fd });
-        statusEl.innerText = r.ok ? "Photo saved." : "Upload failed.";
-        if (r.ok) loadStocks();
-      });
-    });
+    const res = await fetch(`/products?account_id=${SHOP_ID}`);
+    allProducts = await res.json();
+    statusEl.innerText = "";
+    renderStocks();
   } catch (err) {
     statusEl.innerText = "Could not load inventory.";
   }
 }
+
+function renderStocks() {
+  const list = document.getElementById("stockList");
+  let products = allProducts;
+  if (lowOnly) products = products.filter(isLow);
+  if (stockQuery) products = products.filter(p => p.name.toLowerCase().includes(stockQuery));
+
+  if (!products.length) {
+    list.innerHTML = `<div class="empty-stock">${allProducts.length ? "No products match." : "No products yet — add one by voice."}</div>`;
+    return;
+  }
+
+  list.innerHTML = products.map(p => {
+    const qty = qtyOf(p);
+    const low = isLow(p);
+    const thumb = p.image_url
+      ? `<img class="s-thumb" src="${p.image_url}" alt="${p.name}">`
+      : `<div class="s-thumb ph">${initials(p.name)}</div>`;
+    return `
+      <div class="s-row" data-id="${p.id}">
+        ${thumb}
+        <div class="s-info">
+          <div class="s-name">${p.name}</div>
+          <div class="s-meta">${qty} ${p.unit || ''}${p.min_stock_level != null ? ` · min ${p.min_stock_level}` : ''}</div>
+        </div>
+        <div class="s-right">
+          <span class="pill ${low ? 'danger' : 'success'}">${low ? 'Low' : 'Healthy'}</span>
+          <svg class="ic" viewBox="0 0 20 20" style="color:var(--text-faint);"><path d="M7 4l6 6-6 6"/></svg>
+        </div>
+      </div>
+    `;
+  }).join("");
+
+  list.querySelectorAll(".s-row").forEach(row => {
+    row.addEventListener("click", () => openStockDetail(parseInt(row.dataset.id)));
+  });
+}
+
+document.getElementById("stockSearch").addEventListener("input", (e) => {
+  stockQuery = e.target.value.trim().toLowerCase();
+  renderStocks();
+});
+document.getElementById("lowFilterBtn").addEventListener("click", (e) => {
+  lowOnly = !lowOnly;
+  e.currentTarget.classList.toggle("active", lowOnly);
+  renderStocks();
+});
+
+function openStockDetail(id) {
+  const p = allProducts.find(x => x.id === id);
+  if (!p) return;
+  const qty = qtyOf(p);
+  const low = isLow(p);
+  const thumb = p.image_url
+    ? `<img class="dh-thumb" src="${p.image_url}" alt="${p.name}">`
+    : `<div class="dh-thumb ph">${initials(p.name)}</div>`;
+
+  const header = `
+    ${thumb}
+    <div style="min-width:0;">
+      <div class="dh-title">${p.name}</div>
+      <div class="dh-sub">${qty} ${p.unit || ''} in stock</div>
+    </div>
+  `;
+
+  const body = `
+    <div class="detail-section">
+      <h4>Inventory Details</h4>
+      <div class="detail-grid">
+        <div class="detail-cell">
+          <div class="lbl">Current Stock</div>
+          <div class="val ${low ? 'danger' : 'success'}">${qty} ${p.unit || ''}</div>
+        </div>
+        <div class="detail-cell">
+          <div class="lbl">Status</div>
+          <div class="val ${low ? 'danger' : 'success'}">${low ? 'Low Stock' : 'Healthy'}</div>
+        </div>
+        <div class="detail-cell">
+          <div class="lbl">Low-stock Threshold</div>
+          <div class="val">${p.min_stock_level ?? '—'}</div>
+        </div>
+        <div class="detail-cell">
+          <div class="lbl">Unit</div>
+          <div class="val">${p.unit || '—'}</div>
+        </div>
+      </div>
+    </div>
+    <div class="detail-section">
+      <h4>Photo</h4>
+      <label class="upload-btn">
+        <svg class="ic" viewBox="0 0 20 20"><rect x="2" y="3" width="16" height="14" rx="2"/><circle cx="7" cy="8" r="1.5"/><path d="M2 14l5-5 4 4 3-3 4 4"/></svg>
+        ${p.image_url ? 'Change Photo' : 'Add Photo'}
+        <input type="file" accept="image/*" id="drawerImgInput">
+      </label>
+      <div class="upload-status" id="drawerUploadStatus"></div>
+    </div>
+  `;
+
+  openDrawer(header, body);
+
+  document.getElementById("drawerImgInput").addEventListener("change", async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const fd = new FormData();
+    fd.append("file", file);
+    const statusEl = document.getElementById("drawerUploadStatus");
+    statusEl.innerText = "Uploading…";
+    const r = await fetch(`/products/${p.id}/image`, { method: "POST", body: fd });
+    statusEl.innerText = r.ok ? "Photo saved." : "Upload failed.";
+    if (r.ok) { await loadStocks(); closeDrawer(); }
+  });
+}
+
+/* ---------------- HISTORY ---------------- */
+let historyData = null;
+
+function histRowWholesaler(o) {
+  const delivered = !!o.delivered_at;
+  return `
+    <div class="h-row" data-kind="wholesaler" data-id="${o.order_id}">
+      <div class="h-icon wholesaler"><svg class="ic" viewBox="0 0 20 20"><rect x="1" y="6" width="10" height="7"/><path d="M11 9h4l3 3v1h-7z"/><circle cx="5" cy="15" r="1.5"/><circle cx="15" cy="15" r="1.5"/></svg></div>
+      <div class="h-info">
+        <div class="h-title">${o.product_name} × ${o.quantity}</div>
+        <div class="h-sub">${o.wholesaler_name || '—'} · ${fmtDate(o.placed_at) || '—'}</div>
+      </div>
+      <div class="h-right">
+        <div class="h-amount">₹${o.total_price}</div>
+        <span class="pill ${delivered ? 'success' : 'neutral'}">${delivered ? 'Delivered' : 'In progress'}</span>
+      </div>
+    </div>
+  `;
+}
+function histRowManual(b, idx) {
+  return `
+    <div class="h-row" data-kind="manual" data-idx="${idx}">
+      <div class="h-icon manual"><svg class="ic" viewBox="0 0 20 20"><path d="M10 2 3 6v8l7 4 7-4V6z"/><path d="M3 6l7 4 7-4"/><path d="M10 10v8"/></svg></div>
+      <div class="h-info">
+        <div class="h-title">${b.product_name} × ${b.quantity}</div>
+        <div class="h-sub">Added ${fmtDate(b.added_at) || '—'}</div>
+      </div>
+      <div class="h-right">
+        <div class="h-amount">${b.cost_price ? `₹${b.cost_price}` : '—'}</div>
+      </div>
+    </div>
+  `;
+}
+function histRowSold(s, idx) {
+  return `
+    <div class="h-row" data-kind="sold" data-idx="${idx}">
+      <div class="h-icon sold"><svg class="ic" viewBox="0 0 20 20"><circle cx="7" cy="17" r="1.3"/><circle cx="14" cy="17" r="1.3"/><path d="M2 3h2l2 11h9l2-7H5"/></svg></div>
+      <div class="h-info">
+        <div class="h-title">${s.product_name} × ${s.quantity}</div>
+        <div class="h-sub">Sold ${fmtDate(s.sold_at) || '—'}</div>
+      </div>
+      <div class="h-right">
+        <div class="h-amount">${s.revenue ? `₹${s.revenue}` : '—'}</div>
+      </div>
+    </div>
+  `;
+}
+
+async function loadHistory() {
+  try {
+    const res = await fetch(`/retailer/history?retailer_id=${SHOP_ID}`);
+    historyData = await res.json();
+    renderHistory();
+  } catch (e) {}
+}
+
+function renderHistory() {
+  if (!historyData) return;
+
+  document.getElementById("addedWholesalerList").innerHTML =
+    historyData.item_added_wholesaler.map(histRowWholesaler).join("") ||
+    "<p class='empty-note'>No wholesaler orders delivered yet.</p>";
+
+  document.getElementById("addedManualList").innerHTML =
+    historyData.item_added_manual.map(histRowManual).join("") ||
+    "<p class='empty-note'>No manual stock added yet.</p>";
+
+  document.getElementById("soldList").innerHTML =
+    historyData.item_sold.map(histRowSold).join("") ||
+    "<p class='empty-note'>No sales recorded yet.</p>";
+
+  document.querySelectorAll('#addedWholesalerList .h-row').forEach(row => {
+    row.addEventListener("click", () => {
+      const o = historyData.item_added_wholesaler.find(x => x.order_id === parseInt(row.dataset.id));
+      if (o) openWholesalerDetail(o);
+    });
+  });
+  document.querySelectorAll('#addedManualList .h-row').forEach(row => {
+    row.addEventListener("click", () => openSimpleDetail(historyData.item_added_manual[row.dataset.idx], "manual"));
+  });
+  document.querySelectorAll('#soldList .h-row').forEach(row => {
+    row.addEventListener("click", () => openSimpleDetail(historyData.item_sold[row.dataset.idx], "sold"));
+  });
+
+  renderDashboardActivity();
+}
+
+function openWholesalerDetail(o) {
+  const header = `
+    <div class="dh-thumb ph"><svg class="ic" viewBox="0 0 20 20" style="width:18px;height:18px;"><rect x="1" y="6" width="10" height="7"/><path d="M11 9h4l3 3v1h-7z"/></svg></div>
+    <div style="min-width:0;">
+      <div class="dh-title">${o.product_name} × ${o.quantity}</div>
+      <div class="dh-sub">₹${o.total_price} · Order #${o.order_id}</div>
+    </div>
+  `;
+
+  const steps = [
+    { label: "Order Placed", time: o.placed_at },
+    { label: "Confirmed", time: o.confirmed_at },
+    { label: "Picked Up", time: o.picked_up_at },
+    { label: "Delivered", time: o.delivered_at },
+  ];
+
+  const stepperHtml = steps.map(s => `
+    <div class="step ${s.time ? 'done' : ''}">
+      <div class="step-rail">
+        <div class="step-dot">${s.time ? '<svg class="ic" viewBox="0 0 20 20"><path d="M4 10l4 4 8-8"/></svg>' : ''}</div>
+        <div class="step-line"></div>
+      </div>
+      <div class="step-body">
+        <div class="step-label">${s.label}</div>
+        <div class="step-time">${s.time ? fmtDateFull(s.time) : 'Pending'}</div>
+      </div>
+    </div>
+  `).join("");
+
+  const body = `
+    <div class="detail-section">
+      <h4>Order Timeline</h4>
+      <div class="stepper">${stepperHtml}</div>
+    </div>
+    <div class="detail-section">
+      <h4>Details</h4>
+      <div class="detail-grid">
+        <div class="detail-cell"><div class="lbl">Wholesaler</div><div class="val">${o.wholesaler_name || '—'}</div></div>
+        <div class="detail-cell"><div class="lbl">Delivered By</div><div class="val">${o.driver_name || '—'}</div></div>
+        <div class="detail-cell"><div class="lbl">Quantity</div><div class="val">${o.quantity}</div></div>
+        <div class="detail-cell"><div class="lbl">Amount</div><div class="val">₹${o.total_price}</div></div>
+      </div>
+    </div>
+  `;
+  openDrawer(header, body);
+}
+
+function openSimpleDetail(item, kind) {
+  const isManual = kind === "manual";
+  const header = `
+    <div class="dh-thumb ph">${initials(item.product_name)}</div>
+    <div style="min-width:0;">
+      <div class="dh-title">${item.product_name} × ${item.quantity}</div>
+      <div class="dh-sub">${isManual ? 'Added to inventory' : 'Sold to customer'}</div>
+    </div>
+  `;
+  const body = `
+    <div class="detail-section">
+      <h4>Details</h4>
+      <div class="detail-grid">
+        <div class="detail-cell"><div class="lbl">Quantity</div><div class="val">${item.quantity}</div></div>
+        <div class="detail-cell"><div class="lbl">${isManual ? 'Cost Price' : 'Revenue'}</div><div class="val">${isManual ? (item.cost_price ? `₹${item.cost_price}` : '—') : (item.revenue ? `₹${item.revenue}` : '—')}</div></div>
+        <div class="detail-cell" style="grid-column:1/-1;"><div class="lbl">${isManual ? 'Added At' : 'Sold At'}</div><div class="val" style="font-size:var(--fs-xs);">${fmtDateFull(isManual ? item.added_at : item.sold_at)}</div></div>
+      </div>
+    </div>
+  `;
+  openDrawer(header, body);
+}
+
+document.querySelectorAll(".seg-btn").forEach(btn => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll(".seg-btn").forEach(b => b.classList.remove("active"));
+    btn.classList.add("active");
+    document.getElementById("addedSection").style.display = btn.dataset.tab === "added" ? "block" : "none";
+    document.getElementById("soldSection").style.display = btn.dataset.tab === "sold" ? "block" : "none";
+  });
+});
+
+document.querySelectorAll(".chip").forEach(btn => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll(".chip").forEach(b => b.classList.remove("active"));
+    btn.classList.add("active");
+    document.getElementById("addedWholesalerList").style.display = btn.dataset.subtab === "wholesaler" ? "block" : "none";
+    document.getElementById("addedManualList").style.display = btn.dataset.subtab === "manual" ? "block" : "none";
+  });
+});
+
+loadHistory();
+setInterval(loadHistory, 10000);
+
+/* ======================================================================
+   PROFILE  -  everything here is read from / saved to the backend
+   ====================================================================== */
+const SUPPORT_EMAIL = "";   // put your support email here, e.g. "support@yourdomain.com"
+const FREE_LIMIT_FALLBACK = 1000;
+const VOICES = [
+  { id: "matthew", label: "Matthew", desc: "Male · US English", short: "Matthew (Male)" },
+  { id: "tiffany", label: "Tiffany", desc: "Female · US English", short: "Tiffany (Female)" },
+  { id: "amy", label: "Amy", desc: "Female · British English", short: "Amy (Female)" }
+];
+const LANGS = [
+  { id: "auto", label: "Auto", desc: "Understands Hindi, Hinglish and English", short: "Auto" },
+  { id: "en", label: "English", desc: "Assistant always replies in English", short: "English" },
+  { id: "hi", label: "Hindi / Hinglish", desc: "Assistant always replies in Hindi or Hinglish", short: "Hindi / Hinglish" }
+];
+const PI = {
+  user: '<circle cx="10" cy="7" r="3.2"/><path d="M3.5 17c0-3.2 2.8-5.2 6.5-5.2s6.5 2 6.5 5.2"/>',
+  store: '<path d="M3 8l1.5-4h11L17 8"/><path d="M4 8v8h12V8"/><path d="M8 16v-4h4v4"/>',
+  lock: '<rect x="4" y="9" width="12" height="8" rx="2"/><path d="M7 9V6.5a3 3 0 0 1 6 0V9"/>',
+  mic: '<path d="M10 3a3 3 0 0 1 3 3v4a3 3 0 0 1-6 0V6a3 3 0 0 1 3-3z"/><path d="M5 9v1a5 5 0 0 0 10 0V9"/><path d="M10 15v2"/>',
+  globe: '<circle cx="10" cy="10" r="7"/><path d="M3 10h14"/><path d="M10 3c2.5 2.2 2.5 11.8 0 14M10 3c-2.5 2.2-2.5 11.8 0 14"/>',
+  wave: '<path d="M3 8v4M6.5 5v10M10 3v14M13.5 6v8M17 8.5v3"/>',
+  history: '<circle cx="10" cy="10" r="7"/><path d="M10 6v4l3 2"/>',
+  play: '<path d="M6 4l10 6-10 6z"/>',
+  bell: '<path d="M5 8a5 5 0 0 1 10 0c0 5 2 6 2 6H3s2-1 2-6"/><path d="M8.5 17a1.8 1.8 0 0 0 3 0"/>',
+  cart: '<circle cx="7" cy="17" r="1.3"/><circle cx="14" cy="17" r="1.3"/><path d="M2 3h2l2 11h9l2-7H5"/>',
+  truck: '<rect x="1" y="6" width="10" height="7"/><path d="M11 9h4l3 3v1h-7z"/><circle cx="5" cy="15" r="1.5"/><circle cx="15" cy="15" r="1.5"/>',
+  box: '<path d="M10 2 3 6v8l7 4 7-4V6z"/><path d="M3 6l7 4 7-4"/><path d="M10 10v8"/>',
+  sound: '<path d="M3 8v4h3l4 3V5L6 8z"/><path d="M13 7.5a3.5 3.5 0 0 1 0 5M15 5.5a6.5 6.5 0 0 1 0 9"/>',
+  palette: '<circle cx="10" cy="10" r="7"/><circle cx="7" cy="8.5" r="1"/><circle cx="11" cy="6.8" r="1"/><circle cx="13.5" cy="10" r="1"/>',
+  rows: '<path d="M4 5h12M4 10h12M4 15h12"/>',
+  brush: '<path d="M13 3l4 4-7 7-4 1 1-4z"/>',
+  crown: '<path d="M3 6l3.5 3.5L10 4l3.5 5.5L17 6l-1.5 9h-11z"/>',
+  receipt: '<path d="M5 3h10v14l-2-1.5-1.5 1.5L10 15.5 8.5 17 7 15.5 5 17z"/><path d="M8 7h4M8 10h4"/>',
+  help: '<circle cx="10" cy="10" r="7"/><path d="M8 8a2 2 0 1 1 3 1.7c-.7.4-1 .9-1 1.6"/><path d="M10 14.2v.1"/>',
+  mail: '<rect x="3" y="5" width="14" height="10" rx="2"/><path d="M3.5 6l6.5 5 6.5-5"/>',
+  gear: '<circle cx="10" cy="10" r="2.5"/><path d="M10 2.5v2M10 15.5v2M2.5 10h2M15.5 10h2M4.7 4.7l1.4 1.4M13.9 13.9l1.4 1.4M4.7 15.3l1.4-1.4M13.9 6.1l1.4-1.4"/>',
+  logout: '<path d="M8 4H4v12h4"/><path d="M12 6l4 4-4 4M16 10H8"/>',
+  chev: '<path d="M7 4l6 6-6 6"/>',
+  check: '<path d="M4 10l4 4 8-8"/>',
+  edit: '<path d="M4 16l1-4 8-8 3 3-8 8z"/>',
+  phone: '<path d="M5 3h3l1.5 4-2 1.2a8 8 0 0 0 4.3 4.3L13 10.5l4 1.5v3a2 2 0 0 1-2 2A12 12 0 0 1 3 5a2 2 0 0 1 2-2z"/>'
+};
+const ico = (k, cls) => `<svg class="ic${cls ? " " + cls : ""}" viewBox="0 0 20 20">${PI[k]}</svg>`;
+const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+const pfRoot = document.getElementById("pfRoot");
+let profile = null;
+
+/* ---------- identity (name shown on Home) ---------- */
+function applyIdentity(name) {
+  if (!name) return;
+  try { localStorage.setItem("account_name", name); } catch (e) {}
+  const g = document.getElementById("dashGreet");
+  if (g) {
+    g.textContent = "Hello ";
+    const sp = document.createElement("span");
+    sp.className = "nm"; sp.textContent = name;
+    g.appendChild(sp);
+    g.appendChild(document.createTextNode(" 👋"));
+  }
+  const av = document.getElementById("dashAvatar");
+  if (av) av.textContent = name.slice(0, 1).toUpperCase();
+  const un = document.getElementById("dashUserName");
+  if (un) un.textContent = name;
+}
+
+/* ---------- row builders ---------- */
+function rowBtn(i, t, s, right, act) {
+  return `<button class="pf-row" data-act="${act}"><span class="pf-ico">${ico(i)}</span>` +
+    `<span class="pf-rm"><span class="pf-rt">${t}</span><span class="pf-rs">${s}</span></span>` +
+    (right ? `<span class="pf-val">${esc(right)}</span>` : "") + ico("chev", "pf-chev") + `</button>`;
+}
+function rowSwitch(i, t, s, path, on) {
+  return `<div class="pf-row static"><span class="pf-ico">${ico(i)}</span>` +
+    `<span class="pf-rm"><span class="pf-rt">${t}</span><span class="pf-rs">${s}</span></span>` +
+    `<button class="pf-switch${on ? " on" : ""}" role="switch" aria-checked="${on}" aria-label="${t}" data-sw="${path}"></button></div>`;
+}
+function cardHead(i, t, s) {
+  return `<div class="pf-card-head"><span class="pf-ico">${ico(i)}</span><div><div class="pf-ct">${t}</div><div class="pf-cs">${s}</div></div></div>`;
+}
+const voiceLabel = id => (VOICES.find(v => v.id === id) || VOICES[0]).short;
+const langLabel = id => (LANGS.find(l => l.id === id) || LANGS[0]).short;
+
+/* ---------- render ---------- */
+function renderProfile() {
+  if (!profile) { pfRoot.innerHTML = '<div class="pf-loading">Loading profile…</div>'; return; }
+  const p = profile, n = prefs.notifications, v = prefs.voice, a = prefs.appearance;
+  const since = p.member_since ? new Date(p.member_since + "Z").toLocaleDateString(undefined, { month: "short", year: "numeric" }) : "—";
+  const isPro = (p.plan || "free") !== "free";
+  const used = (p.usage && p.usage.used) || 0;
+  const limit = p.usage ? p.usage.limit : FREE_LIMIT_FALLBACK;
+  const pct = limit ? Math.min(100, Math.round((used / limit) * 100)) : 0;
+  const dash = (pct * 113.1) / 100;
+
+  const hero = `
+    <div class="pf-card pf-hero">
+      <div class="pf-avatar">${esc(initials(p.name))}</div>
+      <div class="pf-hero-info">
+        <div class="pf-name-line"><span class="pf-name">${esc(p.name)}</span><span class="pf-badge">Owner</span></div>
+        ${p.business_name ? `<div class="pf-meta">${ico("store")}${esc(p.business_name)}</div>` : ""}
+        <div class="pf-meta">${ico("mail")}${p.email ? esc(p.email) : '<span class="add" data-act="personal">Add email</span>'}</div>
+        <div class="pf-meta">${ico("phone")}${p.phone ? esc(p.phone) : '<span class="add" data-act="personal">Add phone number</span>'}</div>
+        <div class="pf-meta faint">Member since ${esc(since)}</div>
+      </div>
+      <button class="pf-btn" data-act="personal">${ico("edit")}Edit Profile</button>
+    </div>`;
+
+  const account = `
+    <div class="pf-card">${cardHead("user", "Account", "Personal and business information")}
+      ${rowBtn("user", "Personal Information", "Name, email, phone", "", "personal")}
+      ${rowBtn("store", "Business Details", "Store name, address, GSTIN", "", "business")}
+      ${rowBtn("lock", "Security &amp; Login", "Change your 4-digit PIN", "", "security")}
+    </div>`;
+
+  const voice = `
+    <div class="pf-card">${cardHead("mic", "Voice Assistant", "Customize your AI voice assistant")}
+      ${rowSwitch("mic", "Voice Assistant", "Enable or disable voice assistant", "voice.enabled", v.enabled)}
+      ${rowBtn("globe", "Language", "Select your preferred language", langLabel(v.language), "lang")}
+      ${rowBtn("wave", "Voice &amp; Tone", "Choose the assistant's voice", voiceLabel(v.voice), "voice")}
+      ${rowBtn("mic", "Microphone &amp; Permissions", "Manage microphone access", "", "mic")}
+      ${rowBtn("history", "Voice History", "View your past voice interactions", "", "vhist")}
+      <div class="pf-test"><span class="pf-play">${ico("play")}</span>
+        <span class="pf-rm"><span class="pf-rt">Test Voice Assistant</span><span class="pf-rs">Start listening and try a command</span></span>
+        <button class="pf-btn" data-act="try">Try Now</button></div>
+    </div>`;
+
+  const notif = `
+    <div class="pf-card">${cardHead("bell", "Notification Preferences", "Get updates about your business")}
+      ${rowSwitch("bell", "Low Stock Alerts", "Get notified when stock is low", "notifications.low_stock", n.low_stock)}
+      ${rowSwitch("cart", "New Order Alerts", "Get notified when you place an order", "notifications.new_order", n.new_order)}
+      ${rowSwitch("truck", "Delivery Updates", "Track delivery status and updates", "notifications.delivery", n.delivery)}
+      ${rowSwitch("box", "Wholesaler Updates", "Updates from your suppliers", "notifications.wholesaler", n.wholesaler)}
+      ${rowBtn("sound", "Sound &amp; Vibration", "Play sound for notifications", n.sound ? (n.vibration ? "Sound + vibration" : "Sound") : (n.vibration ? "Vibration" : "Off"), "sound")}
+    </div>`;
+
+  const dots = Object.keys(ACCENTS).map(k =>
+    `<button class="pf-dot${a.accent === k ? " sel" : ""}" style="background:${ACCENTS[k][0]}" data-accent="${k}" aria-label="${k} accent"></button>`).join("");
+  const appearance = `
+    <div class="pf-card">${cardHead("palette", "Appearance", "Customize the look and feel")}
+      ${rowBtn("palette", "Theme", "Dark or light", a.theme === "light" ? "Light mode" : "Dark mode", "theme")}
+      ${rowBtn("rows", "Density", "Spacing of lists and rows", a.density === "compact" ? "Compact" : "Comfortable", "density")}
+      <div class="pf-row static"><span class="pf-ico">${ico("brush")}</span>
+        <span class="pf-rm"><span class="pf-rt">Accent Color</span></span><span class="pf-dots">${dots}</span></div>
+    </div>`;
+
+  const usageBox = isPro
+    ? `<div class="pf-usage"><span class="pf-rm"><small>Usage (This Month)</small><span class="pf-rt">${used} voice messages</span></span></div>`
+    : `<div class="pf-usage"><div class="pf-ring"><svg viewBox="0 0 42 42"><circle cx="21" cy="21" r="18" fill="none" stroke="rgba(150,170,220,0.25)" stroke-width="4"/>` +
+      `<circle cx="21" cy="21" r="18" fill="none" stroke="var(--accent)" stroke-width="4" stroke-linecap="round" stroke-dasharray="${dash.toFixed(1)} 113.1"/></svg><span>${pct}%</span></div>` +
+      `<span class="pf-rm"><small>Usage (This Month)</small><span class="pf-rt">${used} / ${limit}</span><small>voice messages</small></span></div>`;
+  const sub = `
+    <div class="pf-card">${cardHead("crown", "Subscription &amp; Plan", "Your current plan and usage")}
+      <div class="pf-plan">
+        <div class="pf-plan-top"><span class="pf-plan-name">${ico("crown")}${isPro ? "Pro Plan" : "Free Plan"}</span><span class="pf-pill">Current Plan</span></div>
+        <div class="pf-rs">${isPro ? "All features unlocked" : "Basic features • Limited usage"}</div>
+        <div class="pf-plan-body">${isPro ? "" : `<button class="pf-btn primary" data-act="upgrade">${ico("crown")}Upgrade to Pro</button>`}${usageBox}</div>
+      </div>
+      ${rowBtn("receipt", "Billing History", "View past payments and invoices", "", "billing")}
+    </div>`;
+
+  const pro = isPro ? "" : `
+    <div class="pf-card pf-pro">
+      <div class="pf-pro-crown">${ico("crown")}</div>
+      <h3>VoiceStock Pro</h3><div class="sub">Unlock more power</div>
+      <ul>${["Unlimited voice messages", "Advanced analytics", "Priority support", "Commercial features"].map(x => `<li>${ico("check")}${x}</li>`).join("")}</ul>
+      <button class="pf-btn primary block" data-act="upgrade">${ico("crown")}Upgrade Now</button>
+    </div>`;
+  const quick = `
+    <div class="pf-card"><div class="pf-qa-title">Quick Actions</div>
+      ${rowBtn("help", "View Help Center", "FAQs and support", "", "help")}
+      ${rowBtn("mail", "Contact Support", "Get in touch with us", "", "support")}
+      ${rowBtn("gear", "App Settings", "Advanced settings", "", "appsettings")}
+    </div>`;
+  const logout = `
+    <div class="pf-card pf-logout"><button class="pf-btn danger block" data-act="logout">${ico("logout")}Log Out</button></div>
+    <div class="pf-del">Want to delete your account? <a data-act="support">Contact support</a></div>`;
+
+  pfRoot.innerHTML = `<div class="pf-grid">
+    <div class="pf-col">${hero}${account}${voice}</div>
+    <div class="pf-col">${notif}${appearance}${sub}</div>
+    <div class="pf-col">${pro}${quick}${logout}</div></div>`;
+}
+
+/* ---------- load from backend ---------- */
+async function loadProfile() {
+  try {
+    const r = await fetch(`/profile?account_id=${SHOP_ID}`);
+    if (!r.ok) throw new Error("bad status");
+    profile = await r.json();
+    const wasVoiceOn = prefs.voice.enabled;
+    prefs = mergePrefs(profile.settings);
+    savePrefsLocal();
+    applyAppearance(prefs.appearance);
+    applyIdentity(profile.name);
+    if (document.readyState === "complete" && prefs.voice.enabled !== wasVoiceOn) applyVoiceEnabled(prefs.voice.enabled);
+  } catch (e) {
+    if (!profile) {
+      pfRoot.innerHTML = '<div class="pf-loading">Couldn\'t load your profile.<br><br><button class="pf-btn" data-act="retry">Retry</button></div>';
+      return;
+    }
+  }
+  renderProfile();
+}
+
+/* ---------- saving settings ---------- */
+async function setPref(group, key, value) {
+  const old = prefs[group][key];
+  prefs[group][key] = value;
+  savePrefsLocal();
+  applyAppearance(prefs.appearance);
+  renderProfile();
+  try {
+    const r = await fetch(`/profile/settings?account_id=${SHOP_ID}`, {
+      method: "PUT", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ settings: { [group]: { [key]: value } } })
+    });
+    if (!r.ok) throw new Error("save failed");
+    const data = await r.json();
+    prefs = mergePrefs(data.settings);
+    savePrefsLocal();
+    if (profile) profile.settings = data.settings;
+  } catch (e) {
+    prefs[group][key] = old;
+    savePrefsLocal();
+    applyAppearance(prefs.appearance);
+    flash("Couldn't save", "Check your connection and try again.", "bad");
+    renderProfile();
+    return;
+  }
+  renderProfile();
+  if (group === "voice" && key === "enabled") applyVoiceEnabled(value);
+  if (group === "voice" && (key === "voice" || key === "language")) reconnectVoice();
+}
+function togglePath(path) {
+  const [g, k] = path.split(".");
+  setPref(g, k, !prefs[g][k]);
+}
+
+/* ---------- voice assistant on/off ---------- */
+function applyVoiceEnabled(on) {
+  if (on) {
+    if (!ws || ws.readyState > 1) { manuallyStopped = false; connect(); }
+  } else {
+    manuallyStopped = true;
+    clearTimeout(reconnectTimer);
+    if (ws && ws.readyState <= 1) ws.close();
+    setStatus("stopped", "Voice assistant is off — turn it on in Profile");
+  }
+}
+function reconnectVoice() {
+  if (ws && ws.readyState === 1 && !manuallyStopped) {
+    flash("Voice updated", "Reconnecting the assistant…", "ok");
+    ws.close();   // onclose reconnects with the saved voice and language
+  } else {
+    flash("Saved", "Your voice setting applies the next time the assistant starts.", "ok");
+  }
+}
+
+/* ---------- drawers ---------- */
+function dhead(t, s) { return `<div style="min-width:0;"><div class="dh-title">${t}</div><div class="dh-sub">${s || ""}</div></div>`; }
+function field(id, label, value, attrs) {
+  return `<div class="pf-field"><label for="${id}">${label}</label><input class="pf-input" id="${id}" value="${esc(value)}" ${attrs || ""}></div>`;
+}
+async function apiError(r) {
+  try {
+    const d = await r.json();
+    if (typeof d.detail === "string") return d.detail;
+  } catch (e) {}
+  return "Something went wrong. Please try again.";
+}
+function openOptions(title, sub, options, current, onPick) {
+  const body = options.map(o =>
+    `<button class="pf-opt${o.id === current ? " sel" : ""}" data-pick="${o.id}"><span class="pf-rm"><span class="pf-rt">${esc(o.label)}</span>` +
+    (o.desc ? `<span class="pf-rs">${esc(o.desc)}</span>` : "") + `</span>${o.id === current ? ico("check") : ""}</button>`).join("");
+  openDrawer(dhead(title, sub), body);
+  drawerBody.querySelectorAll("[data-pick]").forEach(b => b.addEventListener("click", () => { closeDrawer(); onPick(b.dataset.pick); }));
+}
+
+function openPersonal() {
+  openDrawer(dhead("Personal Information", "Name, email and phone"),
+    field("pfName", "Name", profile.name, 'maxlength="40" autocomplete="off"') +
+    field("pfEmail", "Email", profile.email, 'type="email" autocomplete="off" placeholder="you@example.com"') +
+    field("pfPhone", "Phone", profile.phone, 'type="tel" autocomplete="off" placeholder="+91 98765 43210"') +
+    `<div class="pf-help">Your name is also what you type to log in.</div><div class="pf-err" id="pfErr"></div>` +
+    `<button class="pf-btn primary block" id="pfSave">Save changes</button>`);
+  document.getElementById("pfSave").onclick = () => saveProfileFields({
+    name: document.getElementById("pfName").value,
+    email: document.getElementById("pfEmail").value,
+    phone: document.getElementById("pfPhone").value
+  });
+}
+function openBusiness() {
+  openDrawer(dhead("Business Details", "Store name, address and GSTIN"),
+    field("pfBiz", "Store name", profile.business_name, 'maxlength="60" autocomplete="off"') +
+    field("pfAddr", "Address", profile.address, 'maxlength="200" autocomplete="off"') +
+    field("pfGst", "GSTIN (optional)", profile.gstin, 'maxlength="15" autocomplete="off" placeholder="22AAAAA0000A1Z5" style="text-transform:uppercase"') +
+    `<div class="pf-err" id="pfErr"></div><button class="pf-btn primary block" id="pfSave">Save changes</button>`);
+  document.getElementById("pfSave").onclick = () => saveProfileFields({
+    business_name: document.getElementById("pfBiz").value,
+    address: document.getElementById("pfAddr").value,
+    gstin: document.getElementById("pfGst").value
+  });
+}
+async function saveProfileFields(fields) {
+  const btn = document.getElementById("pfSave"), err = document.getElementById("pfErr");
+  err.textContent = ""; btn.disabled = true; btn.textContent = "Saving…";
+  try {
+    const r = await fetch(`/profile?account_id=${SHOP_ID}`, {
+      method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(fields)
+    });
+    if (!r.ok) { err.textContent = await apiError(r); btn.disabled = false; btn.textContent = "Save changes"; return; }
+    profile = await r.json();
+    applyIdentity(profile.name);
+    closeDrawer();
+    renderProfile();
+    flash("Saved", "Your profile was updated.", "ok");
+  } catch (e) {
+    err.textContent = "Couldn't reach the server. Check your connection.";
+    btn.disabled = false; btn.textContent = "Save changes";
+  }
+}
+function openSecurity() {
+  const pinAttrs = 'type="password" inputmode="numeric" maxlength="4" autocomplete="off" placeholder="4 digits"';
+  openDrawer(dhead("Security & Login", "Change your PIN"),
+    field("pfPin0", "Current PIN", "", pinAttrs) + field("pfPin1", "New PIN", "", pinAttrs) + field("pfPin2", "Confirm new PIN", "", pinAttrs) +
+    `<div class="pf-err" id="pfErr"></div><button class="pf-btn primary block" id="pfSave">Change PIN</button>`);
+  document.getElementById("pfSave").onclick = async () => {
+    const cur = document.getElementById("pfPin0").value, nw = document.getElementById("pfPin1").value, cf = document.getElementById("pfPin2").value;
+    const err = document.getElementById("pfErr"), btn = document.getElementById("pfSave");
+    if (!/^\d{4}$/.test(nw)) { err.textContent = "New PIN must be exactly 4 digits."; return; }
+    if (nw !== cf) { err.textContent = "The two new PINs don't match."; return; }
+    err.textContent = ""; btn.disabled = true; btn.textContent = "Saving…";
+    try {
+      const r = await fetch(`/profile/change-pin?account_id=${SHOP_ID}`, {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ current_pin: cur, new_pin: nw })
+      });
+      if (!r.ok) { err.textContent = await apiError(r); btn.disabled = false; btn.textContent = "Change PIN"; return; }
+      closeDrawer();
+      flash("PIN changed", "Use the new PIN next time you log in.", "ok");
+    } catch (e) {
+      err.textContent = "Couldn't reach the server. Check your connection.";
+      btn.disabled = false; btn.textContent = "Change PIN";
+    }
+  };
+}
+async function openMic() {
+  let state = "unknown";
+  try { state = (await navigator.permissions.query({ name: "microphone" })).state; } catch (e) {}
+  const label = { granted: "Allowed", denied: "Blocked", prompt: "Not asked yet", unknown: "Unknown" }[state];
+  const help = state === "denied"
+    ? "The browser is blocking the microphone. Click the lock icon next to the address bar, set Microphone to Allow, then reload the page."
+    : "VoiceStock needs the microphone to hear you. Your browser asks for permission the first time.";
+  openDrawer(dhead("Microphone & Permissions", "Access for the voice assistant"),
+    `<div class="detail-grid" style="margin-bottom:12px;"><div class="detail-cell"><div class="lbl">Microphone</div><div class="val ${state === "granted" ? "success" : state === "denied" ? "danger" : ""}">${label}</div></div>` +
+    `<div class="detail-cell"><div class="lbl">Assistant</div><div class="val">${isListening ? "Listening" : "Not listening"}</div></div></div>` +
+    `<div class="pf-help">${help}</div><div class="pf-err" id="pfErr" style="color:var(--text-dim)"></div>` +
+    `<button class="pf-btn block" id="pfMicTest">${ico("mic")}Test microphone</button>`);
+  document.getElementById("pfMicTest").onclick = async () => {
+    const out = document.getElementById("pfErr");
+    try {
+      const s = await navigator.mediaDevices.getUserMedia({ audio: true });
+      s.getTracks().forEach(t => t.stop());
+      out.style.color = "var(--success)"; out.textContent = "Microphone works.";
+    } catch (e) {
+      out.style.color = "var(--danger)"; out.textContent = "Couldn't access the microphone. Check the browser permission.";
+    }
+  };
+}
+async function openVoiceHistory() {
+  openDrawer(dhead("Voice History", "Your recent conversations"), '<div class="pf-help">Loading…</div>');
+  try {
+    const r = await fetch(`/profile/voice-history?account_id=${SHOP_ID}`);
+    if (!r.ok) throw new Error("bad");
+    const rows = await r.json();
+    if (!rows.length) {
+      drawerBody.innerHTML = '<div class="empty-note">No voice conversations saved yet. They appear here after you talk to the assistant.</div>';
+      return;
+    }
+    drawerBody.innerHTML = '<div class="pf-hist">' + rows.map(x =>
+      `<div class="b ${x.role === "assistant" ? "assistant" : "user"}">${esc(x.text)}<div class="t">${esc(fmtDate(x.at) || "")}</div></div>`).join("") +
+      '</div><button class="pf-btn danger block" id="pfClearHist">Clear history</button>';
+    const cb = document.getElementById("pfClearHist");
+    cb.onclick = async () => {
+      if (cb.dataset.armed !== "1") { cb.dataset.armed = "1"; cb.textContent = "Tap again to confirm"; return; }
+      try { await fetch(`/profile/voice-history?account_id=${SHOP_ID}`, { method: "DELETE" }); } catch (e) {}
+      drawerBody.innerHTML = '<div class="empty-note">History cleared.</div>';
+    };
+  } catch (e) {
+    drawerBody.innerHTML = '<div class="empty-note">Couldn\'t load your history.</div>';
+  }
+}
+function openSound() {
+  const n = prefs.notifications;
+  openDrawer(dhead("Sound & Vibration", "How notifications alert you"),
+    `<div class="pf-card" style="margin-bottom:12px;">${rowSwitch("sound", "Sound", "Play a tone for new notifications", "notifications.sound", n.sound)}` +
+    `${rowSwitch("bell", "Vibration", "Vibrate on phones that support it", "notifications.vibration", n.vibration)}</div>` +
+    `<button class="pf-btn block" id="pfSndTest">${ico("play")}Play test</button>`);
+  document.getElementById("pfSndTest").onclick = () => notifySound();
+}
+function openHelp() {
+  const faqs = [
+    ["How do I add stock?", 'Tap the mic on Home and say something like "Add 20 packets of Maggi".'],
+    ["Why does an item show Low?", "An item is Low when its stock is below its low-stock threshold. Add stock by voice or order from a wholesaler."],
+    ["Where do I find my delivery OTP?", "When a wholesale order is out for delivery, the OTP appears on the Home page. Give it to the delivery partner."],
+    ["How do I change my name or PIN?", "Open Profile → Personal Information to change your name, or Security & Login to change your PIN."],
+    ["Why isn't the assistant listening?", "Check that Voice Assistant is on in Profile and that the browser allows the microphone."]
+  ];
+  openDrawer(dhead("Help Center", "Answers to common questions"),
+    faqs.map(f => `<div class="pf-faq"><b>${esc(f[0])}</b><span>${esc(f[1])}</span></div>`).join(""));
+}
+function openSupport() {
+  const subject = encodeURIComponent("VoiceStock support");
+  const body = encodeURIComponent(`Account: ${profile ? profile.name : ""} (#${SHOP_ID})\n\nDescribe your issue:\n`);
+  openDrawer(dhead("Contact Support", "We're here to help"),
+    SUPPORT_EMAIL
+      ? `<div class="pf-help">Send us an email and include what you were doing when the problem happened.</div><a class="pf-btn primary block" style="text-decoration:none" href="mailto:${esc(SUPPORT_EMAIL)}?subject=${subject}&body=${body}">${ico("mail")}Email support</a>`
+      : '<div class="pf-help">A support contact hasn\'t been set up for this app yet.</div>');
+}
+function openAppSettings() {
+  openDrawer(dhead("App Settings", "Advanced"),
+    `<button class="pf-btn block" id="pfAsRefresh" style="margin-bottom:10px;">Reload app</button>` +
+    `<button class="pf-btn block" id="pfAsClear" style="margin-bottom:10px;">Clear notification history</button>` +
+    `<button class="pf-btn danger block" id="pfAsReset">Reset appearance to default</button>`);
+  document.getElementById("pfAsRefresh").onclick = () => location.reload();
+  document.getElementById("pfAsClear").onclick = () => { notifs = []; saveNotifs(); renderNotifs(); flash("Cleared", "Notification history removed.", "ok"); };
+  document.getElementById("pfAsReset").onclick = async () => {
+    closeDrawer();
+    for (const k of Object.keys(PREF_DEFAULTS.appearance)) { await setPref("appearance", k, PREF_DEFAULTS.appearance[k]); }
+  };
+}
+function openLogout() {
+  openDrawer(dhead("Log out?", "You can log back in with your name and PIN"),
+    `<button class="pf-btn danger block" id="pfDoLogout" style="margin-bottom:10px;">${ico("logout")}Log out</button><button class="pf-btn block" id="pfCancelLogout">Cancel</button>`);
+  document.getElementById("pfCancelLogout").onclick = closeDrawer;
+  document.getElementById("pfDoLogout").onclick = () => {
+    manuallyStopped = true;
+    clearTimeout(reconnectTimer);
+    if (ws && ws.readyState <= 1) ws.close();
+    try { localStorage.removeItem("account_id"); localStorage.removeItem("account_name"); } catch (e) {}
+    window.location.href = "/login";
+  };
+}
+function tryVoice() {
+  if (!prefs.voice.enabled) { flash("Voice assistant is off", "Turn it on first.", "bad"); return; }
+  goToView("home");
+  if (!isListening) { resumeRow.classList.remove("disabled"); resumeRow.click(); }
+  showHint('Try saying: "Show me current stock of rice"');
+  flash("Listening", 'Say: "Show me current stock of rice"', "ok");
+}
+
+/* ---------- click handling ---------- */
+function pfAct(act) {
+  switch (act) {
+    case "retry": loadProfile(); break;
+    case "personal": if (profile) openPersonal(); break;
+    case "business": if (profile) openBusiness(); break;
+    case "security": openSecurity(); break;
+    case "lang": openOptions("Language", "How the assistant replies", LANGS, prefs.voice.language, id => setPref("voice", "language", id)); break;
+    case "voice": openOptions("Voice & Tone", "Pick the assistant's voice", VOICES, prefs.voice.voice, id => setPref("voice", "voice", id)); break;
+    case "mic": openMic(); break;
+    case "vhist": openVoiceHistory(); break;
+    case "try": tryVoice(); break;
+    case "sound": openSound(); break;
+    case "theme": openOptions("Theme", "Choose how VoiceStock looks", [{ id: "dark", label: "Dark mode" }, { id: "light", label: "Light mode" }], prefs.appearance.theme, id => setPref("appearance", "theme", id)); break;
+    case "density": openOptions("Density", "Spacing of lists and rows", [{ id: "comfortable", label: "Comfortable" }, { id: "compact", label: "Compact", desc: "Tighter rows, more on screen" }], prefs.appearance.density, id => setPref("appearance", "density", id)); break;
+    case "upgrade": flash("Pro is coming soon", "Paid plans aren't open yet.", ""); break;
+    case "billing": openDrawer(dhead("Billing History", "Past payments and invoices"), '<div class="empty-note">No payments yet. You\'re on the Free plan.</div>'); break;
+    case "help": openHelp(); break;
+    case "support": openSupport(); break;
+    case "appsettings": openAppSettings(); break;
+    case "logout": openLogout(); break;
+  }
+}
+pfRoot.addEventListener("click", e => {
+  const sw = e.target.closest("[data-sw]");
+  if (sw) { togglePath(sw.dataset.sw); return; }
+  const ac = e.target.closest("[data-accent]");
+  if (ac) { setPref("appearance", "accent", ac.dataset.accent); return; }
+  const a = e.target.closest("[data-act]");
+  if (a) pfAct(a.dataset.act);
+});
+// switches inside the Sound & Vibration drawer
+drawerBody.addEventListener("click", e => {
+  const sw = e.target.closest("[data-sw]");
+  if (!sw) return;
+  const [g, k] = sw.dataset.sw.split(".");
+  setPref(g, k, !prefs[g][k]).then(() => openSound());
+});
+document.querySelectorAll(".gear, .dash-user").forEach(el => { el.style.cursor = "pointer"; el.addEventListener("click", () => goToView("profile")); });
+document.querySelectorAll(".up-btn").forEach(el => el.addEventListener("click", () => pfAct("upgrade")));
+
+/* ---------- low-stock alerts (controlled by the Low Stock Alerts switch) ---------- */
+const LOW_KEY = `vs_low_${SHOP_ID}`;
+async function checkLowStockAlerts() {
+  try {
+    const res = await fetch(`/products?account_id=${SHOP_ID}`);
+    if (!res.ok) return;
+    const prods = await res.json();
+    if (!Array.isArray(prods)) return;
+    const low = prods.filter(p => qtyOf(p) < (p.min_stock_level ?? 0));
+    const first = localStorage.getItem(LOW_KEY) === null;
+    let prev = [];
+    try { prev = JSON.parse(localStorage.getItem(LOW_KEY) || "[]"); } catch (e) { prev = []; }
+    const prevSet = new Set(prev);
+    if (!first) {
+      low.filter(p => !prevSet.has(p.id)).forEach(p => {
+        const ev = {
+          key: `${p.id}:low:${Date.now()}`, type: "lowstock", pid: p.id, ts: Date.now(),
+          title: `${p.name} is running low`,
+          sub: `${qtyOf(p)} ${p.unit || ""} left · minimum ${p.min_stock_level}`
+        };
+        if (notifEnabled("lowstock")) { notifs.unshift({ ...ev, read: false }); showToast(ev); }
+      });
+    }
+    localStorage.setItem(LOW_KEY, JSON.stringify(low.map(p => p.id)));
+    notifs.sort((a, b) => b.ts - a.ts);
+    saveNotifs();
+    renderNotifs();
+  } catch (e) {}
+}
+checkLowStockAlerts();
+setInterval(checkLowStockAlerts, 30000);
+
+renderProfile();
+loadProfile();
 </script>
 </body>
 </html>
