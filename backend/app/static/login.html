@@ -1,0 +1,112 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VoiceStock - Login</title>
+<style>
+  body {
+    font-family: system-ui, sans-serif; background: #070d1a; color: #eee;
+    min-height: 100vh; display: flex; align-items: center; justify-content: center;
+    margin: 0; padding: 16px;
+  }
+  .card {
+    background: #101c34; border-radius: 14px; padding: 28px 24px;
+    width: 100%; max-width: 340px; text-align: center;
+  }
+  h1 { font-size: 1.1rem; margin-bottom: 4px; }
+  p { font-size: 0.8rem; color: #7e97bd; margin-bottom: 16px; }
+  .roles { display: flex; gap: 6px; margin-bottom: 16px; }
+  .role-btn {
+    flex: 1; padding: 8px 4px; border-radius: 8px; border: 1px solid #2a3a5c;
+    background: #0b1627; color: #7e97bd; font-size: 0.75rem; cursor: pointer;
+  }
+  .role-btn.active { background: #3fa9ff; color: #04111f; border-color: #3fa9ff; font-weight: 600; }
+  input {
+    width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #2a3a5c;
+    background: #0b1627; color: #eee; margin-bottom: 12px; font-size: 1rem;
+    box-sizing: border-box;
+  }
+  button.submit {
+    width: 100%; padding: 10px; border-radius: 8px; border: none;
+    background: #3fa9ff; color: #04111f; font-weight: 600; cursor: pointer;
+    font-size: 1rem;
+  }
+  .error { color: #ff6b6b; font-size: 0.8rem; min-height: 1em; margin-top: 10px; }
+  .toggle { margin-top: 14px; font-size: 0.8rem; color: #7e97bd; cursor: pointer; text-decoration: underline; }
+</style>
+</head>
+<body>
+  <div class="card">
+    <h1>VoiceStock</h1>
+    <p id="mode-label">Login to your account</p>
+
+    <div class="roles">
+      <div class="role-btn active" data-role="retailer" onclick="selectRole('retailer')">Retailer</div>
+      <div class="role-btn" data-role="wholesaler" onclick="selectRole('wholesaler')">Wholesaler</div>
+      <div class="role-btn" data-role="delivery" onclick="selectRole('delivery')">Delivery</div>
+    </div>
+
+    <input type="text" id="accName" placeholder="Name">
+    <input type="text" id="area" placeholder="Area / City (e.g. Guwahati)">
+    <input type="password" id="pin" placeholder="4-digit PIN" maxlength="4" inputmode="numeric">
+    <button class="submit" onclick="submit_()">Login</button>
+    <div class="error" id="err"></div>
+    <div class="toggle" id="toggle" onclick="toggleMode()">New here? Create an account</div>
+  </div>
+
+<script>
+let isSignup = false;
+let role = "retailer";
+
+function selectRole(r) {
+  role = r;
+  document.querySelectorAll(".role-btn").forEach(b => b.classList.toggle("active", b.dataset.role === r));
+}
+
+function toggleMode() {
+  isSignup = !isSignup;
+  document.getElementById("mode-label").innerText = isSignup ? "Create a new account" : "Login to your account";
+  document.getElementById("toggle").innerText = isSignup ? "Already have an account? Login" : "New here? Create an account";
+  document.querySelector(".submit").innerText = isSignup ? "Create Account" : "Login";
+}
+
+async function submit_() {
+  const name = document.getElementById("accName").value.trim();
+  const area = document.getElementById("area").value.trim();
+  const pin = document.getElementById("pin").value.trim();
+  const errEl = document.getElementById("err");
+  errEl.innerText = "";
+
+  if (!name || pin.length !== 4) {
+    errEl.innerText = "Enter a name and a 4-digit PIN.";
+    return;
+  }
+
+  const endpoint = isSignup ? "/signup" : "/login";
+  try {
+    const res = await fetch(endpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ role, name, pin, area })
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      errEl.innerText = data.detail || "Something went wrong.";
+      return;
+    }
+    localStorage.setItem("account_id", data.account_id);
+    localStorage.setItem("account_name", data.name);
+    localStorage.setItem("role", data.role);
+
+    if (data.role === "retailer") window.location.href = "/voice";
+    else if (data.role === "wholesaler") window.location.href = "/wholesaler";
+    else window.location.href = "/delivery";
+  } catch (e) {
+    errEl.innerText = "Could not connect. Try again.";
+  }
+}
+</script>
+</body>
+</html>

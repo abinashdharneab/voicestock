@@ -1,57 +1,52 @@
 import re
 import difflib
-import requests
 from datetime import datetime
 from sqlalchemy.orm import Session
 from . import models
 
 
-# ---------- NAME MATCHING HELPERS ----------
-
 def _norm(s: str) -> str:
-    """lowercase, only letters/digits, collapse repeated letters (maggiee -> magi)."""
     s = re.sub(r"[^a-z0-9]", "", s.lower())
     return re.sub(r"(.)\1+", r"\1", s)
 
 
 def _clean_name(name: str) -> str:
-    """Capitalise each word for storing: 'parle g' -> 'Parle G'."""
     return " ".join(w[:1].upper() + w[1:] for w in name.strip().split())
 
 
-# ---------- PRODUCT IMAGE LOOKUP ----------
-
-def fetch_product_image(name: str):
-    """Fetch a product photo URL from Open Food Facts. Returns None if not found."""
-    try:
-        r = requests.get(
-            "https://world.openfoodfacts.org/cgi/search.pl",
-            params={
-                "search_terms": name,
-                "search_simple": 1,
-                "action": "process",
-                "json": 1,
-                "page_size": 10,
-                "fields": "product_name,image_front_url",
-            },
-            headers={"User-Agent": "VoiceStock/1.0"},
-            timeout=4,
-        )
-        r.raise_for_status()
-        for p in r.json().get("products", []):
-            if p.get("image_front_url"):
-                return p["image_front_url"]
-    except Exception:
-        pass
+def library_lookup(db: Session, name: str):
+    entries = db.query(models.ProductImage).all()
+    if not entries:
+        return None
+    nq = _norm(name)
+    for e in entries:
+        if e.norm_name == nq:
+            return e.image_url
+    best_score, best = 0.0, None
+    for e in entries:
+        score = difflib.SequenceMatcher(None, nq, e.norm_name).ratio()
+        if score > best_score:
+            best_score, best = score, e
+    if best and best_score >= 0.85:
+        return best.image_url
     return None
 
 
-def find_product(db: Session, name: str, cutoff: float = 0.6):
-    """
-    Returns (product, match_type, suggestions)
-    match_type: exact | normalized | fuzzy | ambiguous | none
-    """
-    products = db.query(models.Product).all()
+def save_to_library(db: Session, name: str, image_url: str):
+    nq = _norm(name)
+    entry = db.query(models.ProductImage).filter(models.ProductImage.norm_name == nq).first()
+    if entry:
+        entry.name = name
+        entry.image_url = image_url
+        entry.updated_at = datetime.utcnow()
+    else:
+        entry = models.ProductImage(name=name, norm_name=nq, image_url=image_url)
+        db.add(entry)
+    db.commit()
+
+
+def find_product(db: Session, name: str, shop_id: int, cutoff: float = 0.6):
+    products = db.query(models.Product).filter(models.Product.shop_id == shop_id).all()
     if not products:
         return None, "none", []
 
@@ -84,11 +79,9 @@ def find_product(db: Session, name: str, cutoff: float = 0.6):
     return None, "none", [p.name for s, p in scored[:3]]
 
 
-# ---------- LIST ALL ITEMS ----------
-def list_products(db: Session):
-    """List every product with its total stock."""
+def list_products(db: Session, shop_id: int):
     items = []
-    for p in db.query(models.Product).all():
+    for p in db.query(models.Product).filter(models.Product.shop_id == shop_id).all():
         total = sum(b.quantity for b in p.batches)
         items.append({
             "product": p.name,
@@ -100,10 +93,8 @@ def list_products(db: Session):
     return {"count": len(items), "items": items}
 
 
-# ---------- CHECK ITEM ----------
-def check_item(db: Session, product_name: str):
-    """Check stock for a product. Tolerates wrong spelling / pronunciation."""
-    product, match_type, suggestions = find_product(db, product_name)
+def check_item(db: Session, product_name: str, shop_id: int):
+    product, match_type, suggestions = find_product(db, product_name, shop_id)
 
     if not product:
         return {
@@ -127,10 +118,14 @@ def check_item(db: Session, product_name: str):
     }
 
 
-# ---------- GET EXPIRING ITEMS ----------
-def get_expiring_items(db: Session, within_days: int = 7):
+def get_expiring_items(db: Session, within_days: int, shop_id: int):
     now = datetime.utcnow()
-    batches = db.query(models.Batch).filter(models.Batch.expiry_date != None).all()
+    batches = (
+        db.query(models.Batch)
+        .join(models.Product)
+        .filter(models.Product.shop_id == shop_id, models.Batch.expiry_date != None)
+        .all()
+    )
 
     expiring = []
     for b in batches:
@@ -146,9 +141,8 @@ def get_expiring_items(db: Session, within_days: int = 7):
     return {"count": len(expiring), "items": expiring}
 
 
-# ---------- GET LOW STOCK ----------
-def get_low_stock(db: Session):
-    products = db.query(models.Product).all()
+def get_low_stock(db: Session, shop_id: int):
+    products = db.query(models.Product).filter(models.Product.shop_id == shop_id).all()
     low_stock_items = []
 
     for p in products:
@@ -163,16 +157,10 @@ def get_low_stock(db: Session):
     return {"count": len(low_stock_items), "items": low_stock_items}
 
 
-# ---------- ADD STOCK ----------
-def add_stock(db: Session, product_name: str, quantity: int, expiry_date: str = None,
-              cost_price: float = None, unit: str = "packet", confirm_new: bool = False):
-    """
-    Add stock. Merges into an existing product when the name matches (exact or same spelling).
-    If the name only looks similar to an existing product, asks for confirmation first,
-    unless confirm_new=True (owner said it is a brand new product).
-    New products automatically get a photo from Open Food Facts when one is found.
-    """
-    product, match_type, suggestions = find_product(db, product_name)
+def add_stock(db: Session, product_name: str, quantity: int, shop_id: int, expiry_date: str = None,
+              cost_price: float = None, unit: str = "packet", confirm_new: bool = False,
+              source: str = "manual", wholesale_order_id: int = None):
+    product, match_type, suggestions = find_product(db, product_name, shop_id)
 
     if match_type in ("fuzzy", "ambiguous") and not confirm_new:
         return {
@@ -191,15 +179,15 @@ def add_stock(db: Session, product_name: str, quantity: int, expiry_date: str = 
         existing = models.Product(
             name=clean,
             unit=unit,
-            image_url=fetch_product_image(clean),
+            shop_id=shop_id,
+            image_url=library_lookup(db, clean),
         )
         db.add(existing)
         db.commit()
         db.refresh(existing)
         created_new = True
     elif not existing.image_url:
-        # older product without a photo: try once more
-        existing.image_url = fetch_product_image(existing.name)
+        existing.image_url = library_lookup(db, existing.name)
 
     parsed_expiry = None
     if expiry_date:
@@ -213,6 +201,8 @@ def add_stock(db: Session, product_name: str, quantity: int, expiry_date: str = 
         quantity=quantity,
         expiry_date=parsed_expiry,
         cost_price=cost_price,
+        source=source,
+        wholesale_order_id=wholesale_order_id,
     )
     db.add(batch)
     db.commit()
@@ -229,10 +219,8 @@ def add_stock(db: Session, product_name: str, quantity: int, expiry_date: str = 
     }
 
 
-# ---------- RECORD SALE ----------
-def record_sale(db: Session, product_name: str, quantity: int, bill_id: str = None):
-    """Record a sale, reducing stock using FEFO (earliest expiry first)."""
-    product, match_type, suggestions = find_product(db, product_name)
+def record_sale(db: Session, product_name: str, quantity: int, shop_id: int, bill_id: str = None):
+    product, match_type, suggestions = find_product(db, product_name, shop_id)
 
     if not product:
         return {
@@ -256,10 +244,7 @@ def record_sale(db: Session, product_name: str, quantity: int, bill_id: str = No
         if existing:
             return {"success": False, "message": "This sale was already recorded (duplicate bill_id)."}
 
-    batches = sorted(
-        product.batches,
-        key=lambda b: (b.expiry_date is None, b.expiry_date)
-    )
+    batches = sorted(product.batches, key=lambda b: (b.expiry_date is None, b.expiry_date))
 
     remaining = quantity
     for batch in batches:
@@ -278,11 +263,8 @@ def record_sale(db: Session, product_name: str, quantity: int, bill_id: str = No
             "message": f"Not enough stock. Could not fulfill {remaining} units of {product.name}.",
         }
 
-    sale = models.SaleTransaction(
-        product_id=product.id,
-        quantity=quantity,
-        bill_id=bill_id,
-    )
+    price = product.price_per_unit
+    sale = models.SaleTransaction(product_id=product.id, quantity=quantity, bill_id=bill_id, price_per_unit=price)
     db.add(sale)
     db.commit()
     db.refresh(product)
@@ -293,17 +275,12 @@ def record_sale(db: Session, product_name: str, quantity: int, bill_id: str = No
         "product": product.name,
         "sold_quantity": quantity,
         "remaining_stock": total_stock,
+        "revenue": (price * quantity) if price else None,
     }
 
 
-# ---------- DELETE PRODUCT ----------
-def delete_product(db: Session, product_name: str, confirm: bool = False):
-    """
-    Delete a product entirely (and its batches/sale history).
-    Fuzzy matches only get deleted if confirm=True, so the voice assistant
-    should always read back the exact product name and ask before deleting.
-    """
-    product, match_type, suggestions = find_product(db, product_name)
+def delete_product(db: Session, product_name: str, shop_id: int, confirm: bool = False):
+    product, match_type, suggestions = find_product(db, product_name, shop_id)
 
     if not product:
         return {
@@ -330,14 +307,8 @@ def delete_product(db: Session, product_name: str, confirm: bool = False):
     return {"success": True, "deleted_product": name}
 
 
-# ---------- RENAME / FIX SPELLING ----------
-def rename_product(db: Session, product_name: str, new_name: str, confirm: bool = False):
-    """
-    Rename a product, e.g. to fix a spelling mistake ('Magi' -> 'Maggi').
-    Fuzzy matches on the OLD name need confirm=True before renaming.
-    Refetches the product photo if it didn't have one.
-    """
-    product, match_type, suggestions = find_product(db, product_name)
+def rename_product(db: Session, product_name: str, new_name: str, shop_id: int, confirm: bool = False):
+    product, match_type, suggestions = find_product(db, product_name, shop_id)
 
     if not product:
         return {
@@ -358,8 +329,7 @@ def rename_product(db: Session, product_name: str, new_name: str, confirm: bool 
     old_name = product.name
     clean_new = _clean_name(new_name)
 
-    # merge into an existing product if the new name already exists
-    existing_target, target_match, _ = find_product(db, clean_new)
+    existing_target, target_match, _ = find_product(db, clean_new, shop_id)
     if existing_target and target_match in ("exact", "normalized") and existing_target.id != product.id:
         for batch in list(product.batches):
             batch.product_id = existing_target.id
@@ -368,16 +338,11 @@ def rename_product(db: Session, product_name: str, new_name: str, confirm: bool 
         )
         db.delete(product)
         db.commit()
-        return {
-            "success": True,
-            "merged": True,
-            "old_name": old_name,
-            "final_name": existing_target.name,
-        }
+        return {"success": True, "merged": True, "old_name": old_name, "final_name": existing_target.name}
 
     product.name = clean_new
     if not product.image_url:
-        product.image_url = fetch_product_image(clean_new)
+        product.image_url = library_lookup(db, clean_new)
     db.commit()
 
     return {
@@ -386,4 +351,71 @@ def rename_product(db: Session, product_name: str, new_name: str, confirm: bool 
         "old_name": old_name,
         "final_name": product.name,
         "image_url": product.image_url,
+    }
+
+
+def find_best_wholesaler(db: Session, product_name: str):
+    items = db.query(models.WholesalerItem).filter(
+        models.WholesalerItem.product_name.ilike(f"%{product_name}%"),
+        models.WholesalerItem.available_quantity > 0,
+    ).all()
+
+    if not items:
+        return None
+
+    best = min(items, key=lambda i: i.price_per_unit)
+    wholesaler = db.query(models.Wholesaler).filter(models.Wholesaler.id == best.wholesaler_id).first()
+
+    return {
+        "wholesaler_id": wholesaler.id,
+        "wholesaler_name": wholesaler.name,
+        "wholesaler_area": wholesaler.area,
+        "wholesaler_contact": wholesaler.contact,
+        "price_per_unit": best.price_per_unit,
+        "available_quantity": best.available_quantity,
+        "product_name": best.product_name,
+    }
+
+
+def place_wholesale_order(db: Session, retailer_id: int, product_name: str, quantity: int):
+    match = find_best_wholesaler(db, product_name)
+    if not match:
+        return {"success": False, "message": f"No wholesaler currently has '{product_name}' in stock."}
+
+    if match["available_quantity"] < quantity:
+        return {
+            "success": False,
+            "message": f"{match['wholesaler_name']} only has {match['available_quantity']} units, you asked for {quantity}.",
+        }
+
+    total = match["price_per_unit"] * quantity
+    order = models.WholesaleOrder(
+        retailer_id=retailer_id,
+        wholesaler_id=match["wholesaler_id"],
+        product_name=match["product_name"],
+        quantity=quantity,
+        unit_price=match["price_per_unit"],
+        total_price=total,
+        status="placed",
+    )
+    db.add(order)
+
+    item = db.query(models.WholesalerItem).filter(
+        models.WholesalerItem.wholesaler_id == match["wholesaler_id"],
+        models.WholesalerItem.product_name == match["product_name"],
+    ).first()
+    item.available_quantity -= quantity
+
+    db.commit()
+    db.refresh(order)
+
+    return {
+        "success": True,
+        "order_id": order.id,
+        "wholesaler_name": match["wholesaler_name"],
+        "wholesaler_contact": match["wholesaler_contact"],
+        "quantity": quantity,
+        "unit_price": match["price_per_unit"],
+        "total_price": total,
+        "message": f"Order placed with {match['wholesaler_name']} for {quantity} units of {match['product_name']} at ₹{match['price_per_unit']}/unit. Total ₹{total}.",
     }

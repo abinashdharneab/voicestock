@@ -28,11 +28,18 @@ class DriverStatus(str, enum.Enum):
 
 
 # ---------- SHOP SIDE ----------
+class Shop(Base):
+    __tablename__ = "shops"
 
+    id = Column(Integer, primary_key=True, index=True)
+    area = Column(String, nullable=True)
+    name = Column(String, nullable=False)
+    pin = Column(String, nullable=False)
 class Product(Base):
     __tablename__ = "products"
 
     id = Column(Integer, primary_key=True, index=True)
+    shop_id = Column(Integer, ForeignKey("shops.id"), nullable=False)
     name = Column(String, nullable=False, index=True)
     category = Column(String, nullable=True)
     unit = Column(String, default="piece")
@@ -53,6 +60,8 @@ class Batch(Base):
     purchase_date = Column(DateTime, default=datetime.utcnow)
     expiry_date = Column(DateTime, nullable=True)
     cost_price = Column(Float, nullable=True)
+    source = Column(String, default="manual")  # "manual" or "wholesaler"
+    wholesale_order_id = Column(Integer, ForeignKey("wholesale_orders.id"), nullable=True)
 
     product = relationship("Product", back_populates="batches")
 
@@ -65,6 +74,7 @@ class SaleTransaction(Base):
     product_id = Column(Integer, ForeignKey("products.id"), nullable=False)
     quantity = Column(Integer, nullable=False)
     bill_id = Column(String, unique=True, nullable=True)  # avoid duplicate billing
+    price_per_unit = Column(Float, nullable=True)
     sold_at = Column(DateTime, default=datetime.utcnow)
 
 
@@ -78,6 +88,9 @@ class Wholesaler(Base):
     rating = Column(Float, default=4.0)
     delivery_time_days = Column(Float, default=1.0)
     contact = Column(String, nullable=True)
+
+    pin = Column(String, nullable=True)
+    area = Column(String, nullable=True)
 
     inventory = relationship("WholesalerInventory", back_populates="wholesaler")
 
@@ -121,7 +134,8 @@ class Driver(Base):
     status = Column(Enum(DriverStatus), default=DriverStatus.available)
     current_lat = Column(Float, nullable=True)
     current_lng = Column(Float, nullable=True)
-
+    pin = Column(String, nullable=True)
+    area = Column(String, nullable=True)
 
 class Delivery(Base):
     __tablename__ = "deliveries"
@@ -147,3 +161,45 @@ class Payment(Base):
     amount = Column(Float, nullable=False)
     status = Column(String, default="success")
     paid_at = Column(DateTime, default=datetime.utcnow)
+
+
+class ProductImage(Base):
+    __tablename__ = "product_images"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, nullable=False)
+    norm_name = Column(String, nullable=False, unique=True, index=True)
+    image_url = Column(String, nullable=True)
+    updated_at = Column(DateTime, default=datetime.utcnow)
+
+
+class WholesalerItem(Base):
+    __tablename__ = "wholesaler_items"
+
+    id = Column(Integer, primary_key=True, index=True)
+    wholesaler_id = Column(Integer, ForeignKey("wholesalers.id"), nullable=False)
+    product_name = Column(String, nullable=False)
+    price_per_unit = Column(Float, nullable=False)
+    available_quantity = Column(Integer, default=0)
+    updated_at = Column(DateTime, default=datetime.utcnow)
+
+
+class WholesaleOrder(Base):
+    __tablename__ = "wholesale_orders"
+
+    id = Column(Integer, primary_key=True, index=True)
+    retailer_id = Column(Integer, ForeignKey("shops.id"), nullable=False)
+    wholesaler_id = Column(Integer, ForeignKey("wholesalers.id"), nullable=False)
+    product_name = Column(String, nullable=False)
+    quantity = Column(Integer, nullable=False)
+    unit_price = Column(Float, nullable=False)
+    total_price = Column(Float, nullable=False)
+    status = Column(String, default="placed")
+    driver_id = Column(Integer, ForeignKey("drivers.id"), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow)
+    otp = Column(String, nullable=True)
+    otp_generated_at = Column(DateTime, nullable=True)
+    confirmed_at = Column(DateTime, nullable=True)
+    picked_up_at = Column(DateTime, nullable=True)
+    delivered_at = Column(DateTime, nullable=True)

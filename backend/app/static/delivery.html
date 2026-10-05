@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VoiceStock | Delivery Dashboard</title>
+<style>
+:root{--bg:#050b1a;--side:#071022;--card:#0b1730;--card2:#0e1d3a;--line:#16284a;--txt:#eaf1ff;--mut:#7f93b8;--blue:#2f6bff;--green:#22c27a;--orange:#f08a2c;--red:#ef4a63}
+*{box-sizing:border-box}
+body{margin:0;font-family:Inter,system-ui,-apple-system,"Segoe UI",sans-serif;background:var(--bg);color:var(--txt);display:flex;min-height:100vh;font-size:14px}
+button{font:inherit;cursor:pointer}
+.side{width:230px;background:var(--side);border-right:1px solid var(--line);padding:18px 14px;display:flex;flex-direction:column;position:sticky;top:0;height:100vh;flex-shrink:0}
+.brand{display:flex;gap:10px;align-items:center;margin-bottom:26px}
+.logo{width:40px;height:40px;border-radius:11px;background:linear-gradient(135deg,#3b82ff,#7c3aed);display:grid;place-items:center;font-weight:800}
+.brand b{font-size:18px;display:block}.brand small{color:var(--mut);font-size:11px}
+.nav a{display:flex;gap:12px;align-items:center;padding:12px 14px;border-radius:10px;color:var(--mut);text-decoration:none;margin-bottom:4px;font-weight:500}
+.nav a.on{background:linear-gradient(90deg,#1d4ed8,#2563eb);color:#fff}
+.nav a svg{width:18px;height:18px}
+.side .sp{flex:1}
+.logout{background:none;border:1px solid var(--line);color:var(--mut);padding:10px;border-radius:10px}
+.logout:hover{color:#fff;border-color:var(--blue)}
+main{flex:1;min-width:0;padding:22px 28px 40px}
+.top{display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:22px}
+.ticon{width:58px;height:58px;border-radius:16px;background:var(--card2);border:1px solid var(--line);display:grid;place-items:center;font-size:26px}
+.ttl{flex:1;min-width:220px}.ttl h1{margin:0;font-size:24px}.ttl p{margin:4px 0 0;color:var(--mut)}
+.search{flex:0 1 340px;display:flex;align-items:center;gap:8px;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:0 14px;height:44px}
+.search input{flex:1;background:none;border:0;outline:0;color:var(--txt);font:inherit}
+.user{display:flex;gap:10px;align-items:center}
+.av{width:38px;height:38px;border-radius:50%;background:linear-gradient(135deg,#6a5cff,#2f6bff);display:grid;place-items:center;font-weight:700}
+.user small{display:block;color:var(--mut);font-size:12px}
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:22px}
+.kpi{border-radius:16px;padding:18px;display:flex;gap:14px;align-items:center;border:1px solid var(--line);background:var(--card)}
+.kpi .ic{width:52px;height:52px;border-radius:14px;display:grid;place-items:center;font-size:22px}
+.kpi span{color:var(--mut);font-size:13px}.kpi b{display:block;font-size:30px;margin-top:2px}
+.k1{background:linear-gradient(135deg,#0d2257,#0b1730)}.k1 .ic{background:#1d4ed8}
+.k2{background:linear-gradient(135deg,#0a2a2a,#0b1730)}.k2 .ic{background:#0f8f68}
+.k3{background:linear-gradient(135deg,#2b1c10,#0b1730)}.k3 .ic{background:#b86a1f}
+.k4{background:linear-gradient(135deg,#0f2447,#0b1730)}.k4 .ic{background:#2f6bff}
+.grid{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(300px,1fr);gap:18px;align-items:start}
+.panel{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:18px}
+.ph{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:12px}
+.ph h2{margin:0;font-size:20px}
+.chips{display:flex;gap:4px;background:var(--side);border-radius:10px;padding:3px}
+.chip{background:none;border:0;color:var(--mut);padding:7px 14px;border-radius:8px}
+.chip.on{background:var(--blue);color:#fff}
+.tw{overflow-x:auto}
+table{width:100%;border-collapse:collapse;min-width:520px}
+th{text-align:left;color:var(--mut);font-weight:500;font-size:12px;padding:10px 8px;border-bottom:1px solid var(--line)}
+td{padding:12px 8px;border-bottom:1px solid var(--line);vertical-align:middle}
+tr.row{cursor:pointer}tr.row:hover td,tr.sel td{background:#0e1f40}
+.item{display:flex;gap:10px;align-items:center}
+.tile{width:38px;height:38px;border-radius:10px;display:grid;place-items:center;font-weight:800;color:#fff;flex-shrink:0}
+.item small{display:block;color:var(--mut)}
+.badge{display:inline-flex;gap:6px;align-items:center;padding:6px 11px;border-radius:8px;font-size:12px;font-weight:600}
+.b-delivered{background:#0f3d2e;color:#43e29b}.b-picked_up{background:#4a2b0c;color:#ffab5c}.b-avail{background:#102f63;color:#7fb2ff}
+.btn{border:1px solid #1f3d78;background:#0d2552;color:#8ab6ff;padding:7px 18px;border-radius:8px;font-weight:600}
+.btn:hover{background:#12326d}
+.btn.pri{background:var(--blue);border-color:var(--blue);color:#fff}
+.btn.pri:hover{background:#4a7fff}
+.btn.full{width:100%;padding:12px}
+.empty{padding:28px;text-align:center;color:var(--mut)}
+.dh{display:flex;gap:12px;align-items:center;margin-bottom:18px}
+.dh .tile{width:48px;height:48px}.dh h3{margin:0;font-size:17px}.dh p{margin:3px 0 0;color:var(--mut)}
+.dh .r{margin-left:auto;text-align:right}
+.tl{display:grid;grid-template-columns:repeat(4,1fr);margin:6px 0 20px;text-align:center}
+.st{position:relative;font-size:12px;color:var(--mut)}
+.st i{display:grid;place-items:center;width:30px;height:30px;border-radius:50%;margin:0 auto 8px;background:var(--side);border:2px solid var(--line);font-style:normal;position:relative;z-index:1}
+.st::before{content:"";position:absolute;top:14px;left:-50%;width:100%;height:2px;background:var(--line)}
+.st:first-child::before{display:none}
+.st.done i{background:#0f3d2e;border-color:var(--green);color:var(--green)}
+.st.done::before{background:var(--green)}
+.st.now i{background:var(--blue);border-color:var(--blue);color:#fff}
+.st.now::before{background:var(--blue)}
+.st.done,.st.now{color:var(--txt)}
+.otp{background:var(--side);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:12px}
+.otp h4{margin:0 0 10px;font-size:14px}
+.otp input{width:100%;background:var(--card);border:1px solid var(--line);color:var(--txt);border-radius:10px;padding:12px;font:inherit;font-size:18px;letter-spacing:6px;text-align:center;margin:10px 0;outline:0}
+.otp input:focus{border-color:var(--blue)}
+.dg{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:6px 0 16px}
+.dg small{color:var(--mut);display:block;margin-bottom:3px}
+.note{color:var(--mut);font-size:13px;line-height:1.5}
+.pty{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:4px 0 14px}
+.pc{background:var(--side);border:1px solid var(--line);border-radius:12px;padding:12px;min-width:0}
+.pc h5{margin:0 0 6px;font-size:12px;color:var(--mut);font-weight:600}
+.pc b{display:block;margin-bottom:4px;overflow-wrap:anywhere}.pc div{color:var(--mut);font-size:13px;line-height:1.5;overflow-wrap:anywhere}
+.pc .lk{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.pc a{font-size:12px;font-weight:600;color:#8ab6ff;text-decoration:none;border:1px solid #1f3d78;background:#0d2552;padding:5px 10px;border-radius:7px}
+.pc a:hover{background:#12326d}
+.map{width:100%;height:190px;border:1px solid var(--line);border-radius:12px;margin-bottom:14px;background:var(--side)}
+@media(max-width:520px){.pty{grid-template-columns:1fr}}
+#toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%) translateY(20px);background:#12326d;border:1px solid var(--blue);padding:12px 20px;border-radius:12px;opacity:0;pointer-events:none;transition:.25s;z-index:20}
+#toast.show{opacity:1;transform:translateX(-50%)}#toast.err{background:#4a1220;border-color:var(--red)}
+:focus-visible{outline:2px solid #7fb2ff;outline-offset:2px}
+@media(max-width:1100px){.grid{grid-template-columns:1fr}.kpis{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:760px){.side{display:none}main{padding:16px}.search{flex-basis:100%;order:5}.kpi b{font-size:24px}}
+@media(prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<aside class="side">
+  <div class="brand"><div class="logo">V</div><div><b>VoiceStock</b><small>Your Voice. Your Stocks.</small></div></div>
+  <nav class="nav"><a class="on" href="/delivery"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7h11v9H3zM14 10h4l3 3v3h-7"/><circle cx="7" cy="18" r="2"/><circle cx="17" cy="18" r="2"/></svg>Delivery</a></nav>
+  <div class="sp"></div>
+  <button class="logout" onclick="logout()">Log out</button>
+</aside>
+
+<main>
+  <div class="top">
+    <div class="ticon">🚚</div>
+    <div class="ttl"><h1>Delivery Dashboard</h1><p>Pick up jobs, deliver orders and stay updated in real time.</p></div>
+    <label class="search"><span>🔍</span><input id="q" placeholder="Search by item or order number..." aria-label="Search deliveries"></label>
+    <div class="user"><div class="av" id="av">D</div><div><b id="uname">Driver</b><small>Delivery partner</small></div></div>
+  </div>
+
+  <section class="kpis">
+    <div class="kpi k1"><div class="ic">📦</div><div><span>My Deliveries</span><b id="kTotal">0</b></div></div>
+    <div class="kpi k2"><div class="ic">✅</div><div><span>Delivered</span><b id="kDone">0</b></div></div>
+    <div class="kpi k3"><div class="ic">🕒</div><div><span>In Transit</span><b id="kTransit">0</b></div></div>
+    <div class="kpi k4"><div class="ic">🆕</div><div><span>Available Jobs</span><b id="kAvail">0</b></div></div>
+  </section>
+
+  <div class="grid">
+    <section class="panel">
+      <div class="ph">
+        <h2>Deliveries</h2>
+        <div class="chips" id="chips">
+          <button class="chip on" data-f="all">All</button>
+          <button class="chip" data-f="avail">Available</button>
+          <button class="chip" data-f="picked_up">In Transit</button>
+          <button class="chip" data-f="delivered">Delivered</button>
+        </div>
+      </div>
+      <div class="tw"><table>
+        <thead><tr><th>#</th><th>Item</th><th>Qty</th><th>Status</th><th style="text-align:right">Action</th></tr></thead>
+        <tbody id="rows"></tbody>
+      </table></div>
+    </section>
+
+    <aside class="panel" id="detail"></aside>
+  </div>
+</main>
+<div id="toast" role="status"></div>
+
+<script>
+const ACCOUNT_ID = localStorage.getItem("account_id");
+if (!ACCOUNT_ID || localStorage.getItem("role") !== "delivery") window.location.href = "/login";
+
+const NAME = localStorage.getItem("account_name") || "Driver";
+document.getElementById("uname").textContent = NAME;
+document.getElementById("av").textContent = NAME.charAt(0).toUpperCase();
+
+let avail = [], mine = [], filter = "all", selected = null, busy = false;
+const COLORS = ["#c2410c","#0e7490","#7c3aed","#be185d","#15803d","#b45309","#1d4ed8"];
+const LABEL = {avail:"Available", picked_up:"In Transit", delivered:"Delivered"};
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const color = n => COLORS[(String(n).charCodeAt(0) || 0) % COLORS.length];
+const tile = n => `<div class="tile" style="background:${color(n)}">${esc(String(n).charAt(0).toUpperCase())}</div>`;
+
+function toast(msg, err){
+  const t = document.getElementById("toast");
+  t.textContent = msg; t.className = "show" + (err ? " err" : "");
+  clearTimeout(toast.t); toast.t = setTimeout(() => t.className = "", 3200);
+}
+
+function all(){
+  return [...avail.map(j => ({...j, key:"a"+j.id, state:"avail"})),
+          ...mine.map(j => ({...j, key:"m"+j.id, state: j.status === "delivered" ? "delivered" : "picked_up"}))]
+    .sort((a,b) => b.id - a.id);
+}
+
+function render(){
+  const list = all(), q = document.getElementById("q").value.trim().toLowerCase();
+  document.getElementById("kTotal").textContent = mine.length;
+  document.getElementById("kDone").textContent = mine.filter(j => j.status === "delivered").length;
+  document.getElementById("kTransit").textContent = mine.filter(j => j.status === "picked_up").length;
+  document.getElementById("kAvail").textContent = avail.length;
+
+  const shown = list.filter(j => (filter === "all" || j.state === filter) &&
+    (!q || j.product_name.toLowerCase().includes(q) || String(j.id).includes(q.replace("#","").replace("ord-","")) ));
+  if (!selected || !list.some(j => j.key === selected)) {
+    const pick = list.find(j => j.state === "picked_up") || list[0];
+    selected = pick ? pick.key : null;
+  }
+  document.getElementById("rows").innerHTML = shown.map(j => `
+    <tr class="row ${j.key === selected ? "sel" : ""}" data-key="${j.key}">
+      <td>#ORD-${j.id}</td>
+      <td><div class="item">${tile(j.product_name)}<div>${esc(j.product_name)}</div></div></td>
+      <td>${j.quantity}</td>
+      <td><span class="badge b-${j.state === "avail" ? "avail" : j.state}">${LABEL[j.state]}</span></td>
+      <td style="text-align:right">${j.state === "avail"
+        ? `<button class="btn pri" data-accept="${j.id}">Accept</button>`
+        : `<button class="btn" data-view="${j.key}">View</button>`}</td>
+    </tr>`).join("") || `<tr><td colspan="5" class="empty">${list.length ? "No deliveries match this filter." : "No jobs right now. New confirmed orders appear here automatically."}</td></tr>`;
+  renderDetail();
+}
+
+function party(title, p){
+  p = p || {};
+  const has = p.lat != null && p.lng != null;
+  const place = [p.address, p.area].filter(Boolean).join(", ");
+  const dest = has ? `${p.lat},${p.lng}` : encodeURIComponent(place || p.name || "");
+  const links = [];
+  if (p.phone) links.push(`<a href="tel:${esc(p.phone)}">Call</a>`);
+  if (has || place) links.push(`<a target="_blank" rel="noopener" href="https://www.google.com/maps/dir/?api=1&destination=${dest}">Directions</a>`);
+  return `<div class="pc"><h5>${title}</h5><b>${esc(p.name || "Not available")}</b>
+    <div>${p.phone ? esc(p.phone) : "Phone not added"}</div>
+    <div>${place ? esc(place) : "Address not added"}${has ? "" : place ? "" : ""}</div>
+    ${has ? "" : `<div>Exact map point not saved</div>`}
+    <div class="lk">${links.join("")}</div></div>`;
+}
+function mapFor(j){
+  const p = j.state === "avail" ? j.wholesaler : j.retailer;
+  if (!p || p.lat == null) return "";
+  const d = 0.006;
+  return `<iframe class="map" loading="lazy" title="Map" src="https://www.openstreetmap.org/export/embed.html?bbox=${p.lng-d},${p.lat-d},${p.lng+d},${p.lat+d}&layer=mapnik&marker=${p.lat},${p.lng}"></iframe>`;
+}
+
+function renderDetail(){
+  const el = document.getElementById("detail");
+  const j = all().find(x => x.key === selected);
+  if (!j) { el.innerHTML = `<div class="empty">Select a delivery to see its details.</div>`; return; }
+  const step = j.state === "avail" ? 2 : j.state === "picked_up" ? 3 : 4; // steps completed
+  const names = ["Placed","Confirmed","In Transit","Delivered"];
+  const tl = names.map((n,i) => {
+    const cls = i < step - (j.state === "delivered" ? 0 : 0) && i < (j.state === "delivered" ? 4 : step) ? "done" : "";
+    const now = j.state === "picked_up" && i === 2 ? "now" : "";
+    const done = (j.state === "avail" && i < 2) || (j.state === "picked_up" && i < 2) || j.state === "delivered";
+    return `<div class="st ${now ? "now" : done ? "done" : ""}"><i>${done && !now ? "✓" : i + 1}</i>${n}</div>`;
+  }).join("");
+
+  let action = "";
+  if (j.state === "avail") {
+    action = `<p class="note">This order is confirmed and waiting for a driver. Accept it to start the delivery.</p>
+      <button class="btn pri full" data-accept="${j.id}">Accept this job</button>`;
+  } else if (j.state === "picked_up") {
+    action = `<div class="otp"><h4>Confirm delivery with OTP</h4>
+      <p class="note" style="margin:0">Generate the code, then ask the retailer to read it out to you.</p>
+      <button class="btn full" style="margin-top:10px" data-gen="${j.id}">Generate OTP</button>
+      <input id="otp" inputmode="numeric" maxlength="5" placeholder="•••••" aria-label="OTP from retailer">
+      <button class="btn pri full" data-verify="${j.id}">Verify and deliver</button></div>`;
+  } else {
+    action = `<p class="note">This order was delivered and the retailer's stock has been updated.</p>`;
+  }
+
+  el.innerHTML = `
+    <div class="dh">${tile(j.product_name)}
+      <div><h3>ORD-${j.id} <span class="badge b-${j.state === "avail" ? "avail" : j.state}" style="margin-left:6px">${LABEL[j.state]}</span></h3>
+      <p>${esc(j.product_name)}</p></div>
+      <div class="r"><b>Qty: ${j.quantity}</b></div></div>
+    <div class="tl">${tl}</div>
+    ${mapFor(j)}
+    <div class="pty">${party("Pickup from (wholesaler)", j.wholesaler)}${party("Deliver to (retailer)", j.retailer)}</div>
+    ${action}`;
+}
+
+async function load(){
+  try {
+    const [a, m] = await Promise.all([
+      fetch("/delivery/jobs").then(r => r.json()),
+      fetch(`/delivery/my-jobs?driver_id=${ACCOUNT_ID}`).then(r => r.json())
+    ]);
+    avail = a; mine = m;
+    if (document.activeElement && document.activeElement.id === "otp") return; // don't wipe the OTP being typed
+    render();
+  } catch (e) { toast("Can't reach the server. Retrying...", true); }
+}
+
+async function call(url, opts, okMsg, errMsg){
+  if (busy) return; busy = true;
+  try {
+    const r = await fetch(url, opts);
+    if (!r.ok) { let d = ""; try { d = (await r.json()).detail; } catch(e){} throw new Error(d || errMsg); }
+    toast(okMsg); return true;
+  } catch (e) { toast(e.message || errMsg, true); return false; }
+  finally { busy = false; }
+}
+
+document.addEventListener("click", async e => {
+  const t = e.target.closest("[data-accept],[data-gen],[data-verify],[data-view],tr.row,.chip");
+  if (!t) return;
+  if (t.matches(".chip")) {
+    filter = t.dataset.f;
+    document.querySelectorAll(".chip").forEach(c => c.classList.toggle("on", c === t));
+    return render();
+  }
+  if (t.dataset.accept) {
+    const id = t.dataset.accept;
+    if (await call(`/delivery/jobs/${id}/accept?driver_id=${ACCOUNT_ID}`, {method:"POST"}, "Job accepted. Pick up the order.", "Job is no longer available.")) selected = "m" + id;
+    return load();
+  }
+  if (t.dataset.gen) {
+    await call(`/delivery/jobs/${t.dataset.gen}/generate-otp`, {method:"POST"}, "OTP generated. Ask the retailer for the code.", "Couldn't generate the OTP.");
+    return;
+  }
+  if (t.dataset.verify) {
+    const otp = document.getElementById("otp").value.trim();
+    if (!otp) return toast("Enter the OTP from the retailer.", true);
+    const ok = await call(`/delivery/jobs/${t.dataset.verify}/verify-otp`, {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({otp})}, "Delivered. Great work!", "Incorrect OTP. Try again.");
+    if (ok) { document.getElementById("otp").blur(); load(); }
+    return;
+  }
+  const key = t.dataset.view || t.dataset.key;
+  if (key) { selected = key; render(); }
+});
+
+document.getElementById("q").addEventListener("input", render);
+function logout(){ localStorage.clear(); window.location.href = "/login"; }
+
+load();
+setInterval(load, 8000);
+</script>
+</body>
+</html>

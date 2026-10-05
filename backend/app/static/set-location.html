@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>VoiceStock | Shop location</title>
+<style>
+body{margin:0;font-family:system-ui,sans-serif;background:#050b1a;color:#eaf1ff;display:grid;place-items:center;min-height:100vh;padding:16px}
+.c{background:#0b1730;border:1px solid #16284a;border-radius:16px;padding:24px;width:100%;max-width:440px}
+h1{margin:0 0 4px;font-size:20px}p{color:#7f93b8;margin:0 0 16px;line-height:1.5}
+label{display:block;font-size:13px;color:#7f93b8;margin:12px 0 6px}
+input{width:100%;box-sizing:border-box;background:#071022;border:1px solid #16284a;border-radius:10px;padding:12px;color:#eaf1ff;font:inherit;outline:0}
+input:focus{border-color:#2f6bff}
+button{width:100%;margin-top:14px;padding:12px;border-radius:10px;border:1px solid #1f3d78;background:#0d2552;color:#8ab6ff;font:inherit;font-weight:600;cursor:pointer}
+button.p{background:#2f6bff;border-color:#2f6bff;color:#fff}
+#msg{margin-top:12px;min-height:20px;font-size:13px}.ok{color:#43e29b}.er{color:#ef4a63}
+#coords{font-size:13px;color:#7f93b8;margin-top:8px}
+</style></head><body>
+<div class="c">
+<h1>Shop location and contact</h1>
+<p>Stand at your shop or godown and tap the location button. Delivery partners will use this to find you and to call you.</p>
+<label for="phone">Phone number</label><input id="phone" inputmode="tel" placeholder="+91 98765 43210">
+<label for="addr">Address</label><input id="addr" placeholder="Shop no, street, area, city">
+<button id="gps">Use my current location</button>
+<div id="coords">Location not saved yet.</div>
+<button class="p" id="save">Save</button>
+<div id="msg" role="status"></div>
+</div>
+<script>
+const ID=localStorage.getItem("account_id"), ROLE=localStorage.getItem("role")==="wholesaler"?"wholesaler":"retailer";
+if(!ID||localStorage.getItem("role")==="delivery")location.href="/login";
+const $=i=>document.getElementById(i);let lat=null,lng=null;
+const q=`role=${ROLE}&account_id=${ID}`;
+function show(){ $("coords").textContent = lat!=null ? `Saved point: ${lat.toFixed(5)}, ${lng.toFixed(5)}` : "Location not saved yet."; }
+function say(t,ok){$("msg").textContent=t;$("msg").className=ok?"ok":"er";}
+fetch(`/location?${q}`).then(r=>r.json()).then(d=>{$("phone").value=d.phone||"";$("addr").value=d.address||"";lat=d.lat;lng=d.lng;show();});
+$("gps").onclick=()=>{
+  if(!navigator.geolocation)return say("This browser can't share location.");
+  say("Getting your location...",true);
+  navigator.geolocation.getCurrentPosition(p=>{lat=p.coords.latitude;lng=p.coords.longitude;show();say("Got it. Tap Save to keep it.",true);},
+    e=>say(e.code===1?"Location permission is blocked. Allow it in the browser's site settings.":"Couldn't get your location. Try again outdoors."),
+    {enableHighAccuracy:true,timeout:15000});
+};
+$("save").onclick=async()=>{
+  const body={phone:$("phone").value,address:$("addr").value};
+  if(lat!=null){body.lat=lat;body.lng=lng;}
+  const r=await fetch(`/location?${q}`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
+  if(r.ok)say("Saved.",true);else{let d="Couldn't save.";try{d=(await r.json()).detail||d}catch(e){}say(d);}
+};
+</script></body></html>
