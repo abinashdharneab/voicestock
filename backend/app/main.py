@@ -14,6 +14,7 @@ from datetime import datetime
 from .database import Base, engine, get_db, SessionLocal
 from . import models, tools
 from . import restock
+from . import nearby
 from .mcp_server import build_mcp, MCPPathFix
 from .bedrock_agent import chat_with_agent
 
@@ -269,6 +270,14 @@ SYSTEM_PROMPT = (
     "Call confirm_restock ONLY after a clear yes, and never for a plan they have not heard. "
     "10) When the owner asks for a morning brief, daily summary, or 'what should I know today', call morning_brief and "
     "read the summary naturally. "
+    "11) When the owner asks about wholesalers, suppliers, or who is nearby, call list_wholesalers (pass max_km if they "
+    "gave a range like '5 km'). Read at most the first five: name, distance in km, and how many items. If the result "
+    "says needs_location, tell them to tap 'Use my current location' on the login page. If there are more, say how "
+    "many more there are and offer to continue. "
+    "12) When the owner then names one wholesaler and asks what they sell, call wholesaler_items with that name and "
+    "read the items with prices; for a long list read the first five and offer more. If the name is ambiguous, ask which. "
+    "13) To order from a particular wholesaler, tell the owner the wholesaler, item, quantity and total price, and call "
+    "order_from_wholesaler with wholesaler_name only after a clear yes. Without a named wholesaler, order the same way. "
     "Keep replies short, natural and conversational, in the language the owner is using."
 )
 
@@ -394,12 +403,35 @@ def build_tools_for_shop(shop_id: int):
             db.close()
 
     @strands_tool
-    def order_from_wholesaler(product_name: str, quantity: int) -> dict:
-        """Find the cheapest wholesaler with this product in stock and place an order with them.
-        Use this when the owner wants to reorder/restock from a wholesaler, not for adding stock manually."""
+    def order_from_wholesaler(product_name: str, quantity: int, wholesaler_name: str = None) -> dict:
+        """Place an order with a wholesaler. If the owner named a wholesaler, pass wholesaler_name to order from
+        exactly that one. Without it, the cheapest wholesaler with stock is used. Only call this after the owner
+        has clearly agreed to the wholesaler, quantity and total. Not for adding stock manually."""
         db = SessionLocal()
         try:
+            if wholesaler_name:
+                return nearby.order_from_specific(db, shop_id, wholesaler_name, product_name, quantity)
             return tools.place_wholesale_order(db, shop_id, product_name, quantity)
+        finally:
+            db.close()
+
+    @strands_tool
+    def list_wholesalers(max_km: float = None) -> dict:
+        """List the wholesalers that have items in stock, nearest first, with distance in km. Pass max_km when the
+        owner asks for a range, for example 'within 5 km'. If the owner's shop location is not saved, the result
+        says so: tell them to use 'Use my current location' on the login page."""
+        db = SessionLocal()
+        try:
+            return nearby.list_wholesalers(db, shop_id, max_km)
+        finally:
+            db.close()
+
+    @strands_tool
+    def wholesaler_items(wholesaler_name: str) -> dict:
+        """Everything one wholesaler has in stock, with price per unit and quantity. The name may be approximate."""
+        db = SessionLocal()
+        try:
+            return nearby.wholesaler_items(db, shop_id, wholesaler_name)
         finally:
             db.close()
 
@@ -445,7 +477,7 @@ def build_tools_for_shop(shop_id: int):
 
     return [list_all_items, check_item, get_expiring_items, get_low_stock, add_stock, record_sale,
             delete_item, fix_product_name, order_from_wholesaler, find_wholesaler,
-            plan_restock, confirm_restock, morning_brief]
+            plan_restock, confirm_restock, morning_brief, list_wholesalers, wholesaler_items]
 
 
 @app.websocket("/ws/voice")

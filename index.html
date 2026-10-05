@@ -34,6 +34,12 @@
     background: #3fa9ff; color: #04111f; font-weight: 600; cursor: pointer;
     font-size: 1rem;
   }
+  .loc-btn {
+    width: 100%; padding: 9px; border-radius: 8px; border: 1px dashed #3fa9ff; background: transparent;
+    color: #3fa9ff; font-size: 0.85rem; cursor: pointer; margin-bottom: 4px;
+  }
+  .loc-btn.done { border-style: solid; color: #43e29b; border-color: #43e29b; }
+  .loc-note { font-size: 0.72rem; color: #7e97bd; min-height: 1.2em; margin-bottom: 10px; text-align: left; }
   .error { color: #ff6b6b; font-size: 0.8rem; min-height: 1em; margin-top: 10px; }
   .toggle { margin-top: 14px; font-size: 0.8rem; color: #7e97bd; cursor: pointer; text-decoration: underline; }
 </style>
@@ -52,6 +58,10 @@
     <input type="text" id="accName" placeholder="Name">
     <input type="text" id="area" placeholder="Area / City (e.g. Guwahati)">
     <input type="password" id="pin" placeholder="4-digit PIN" maxlength="4" inputmode="numeric">
+    <div id="locBox">
+      <button type="button" class="loc-btn" id="locBtn" onclick="getLoc()">📍 Use my current location</button>
+      <div class="loc-note" id="locNote">Optional. Lets the assistant find wholesalers near you.</div>
+    </div>
     <button class="submit" onclick="submit_()">Login</button>
     <div class="error" id="err"></div>
     <div class="toggle" id="toggle" onclick="toggleMode()">New here? Create an account</div>
@@ -61,8 +71,26 @@
 let isSignup = false;
 let role = "retailer";
 
+let myLoc = null;
+
+function getLoc() {
+  const note = document.getElementById("locNote"), btn = document.getElementById("locBtn");
+  if (!navigator.geolocation) { note.innerText = "This browser can't share location."; return; }
+  note.innerText = "Getting your location...";
+  navigator.geolocation.getCurrentPosition(p => {
+    myLoc = { lat: p.coords.latitude, lng: p.coords.longitude };
+    btn.classList.add("done"); btn.innerText = "📍 Location captured";
+    note.innerText = "It will be saved when you log in.";
+  }, e => {
+    myLoc = null; btn.classList.remove("done"); btn.innerText = "📍 Use my current location";
+    note.innerText = e.code === 1 ? "Location is blocked. You can still log in, or allow it in the browser's site settings."
+                                  : "Couldn't get your location. You can still log in.";
+  }, { enableHighAccuracy: true, timeout: 15000 });
+}
+
 function selectRole(r) {
   role = r;
+  document.getElementById("locBox").style.display = (r === "delivery") ? "none" : "block";
   document.querySelectorAll(".role-btn").forEach(b => b.classList.toggle("active", b.dataset.role === r));
 }
 
@@ -100,6 +128,15 @@ async function submit_() {
     localStorage.setItem("account_id", data.account_id);
     localStorage.setItem("account_name", data.name);
     localStorage.setItem("role", data.role);
+
+    if (myLoc && (data.role === "retailer" || data.role === "wholesaler")) {
+      try {
+        await fetch(`/location?role=${data.role}&account_id=${data.account_id}`, {
+          method: "PUT", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ lat: myLoc.lat, lng: myLoc.lng })
+        });
+      } catch (e) { /* login still works without a saved location */ }
+    }
 
     if (data.role === "retailer") window.location.href = "voice.html";
     else if (data.role === "wholesaler") window.location.href = "wholesaler.html";

@@ -156,6 +156,8 @@
   .mini:hover{background:rgba(255,255,255,0.03);}
   .mini .tile{width:38px;height:38px;border-radius:10px;} .mini .mt{font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;}
   .mini .ms{font-size:11px;color:var(--text-faint);} .mini .mr{margin-left:auto;text-align:right;font-size:12px;font-weight:600;white-space:nowrap;}
+  .loc-hint{margin-top:10px;padding:10px 12px;border-radius:10px;font-size:12px;line-height:1.45;color:var(--warning);background:var(--warning-dim);border:1px solid rgba(244,183,64,0.35);}
+  .loc-hint b{display:block;margin-bottom:2px;}
   .flow{display:flex;flex-direction:column;gap:10px;padding:6px 18px 16px;}
   .flow div{display:flex;gap:10px;align-items:flex-start;font-size:12.5px;color:var(--text-dim);}
   .flow b{width:20px;height:20px;border-radius:50%;background:var(--accent-dim);color:var(--accent);display:flex;align-items:center;justify-content:center;font-size:11px;flex-shrink:0;}
@@ -268,7 +270,9 @@
         <div class="card qa"><div class="qa-h"><h3>Quick Actions</h3><span class="online" id="onlineTxt">System Online</span></div>
           <button class="btn primary block" id="qaAdd"><svg class="ic" viewBox="0 0 20 20"><path d="M10 4v12M4 10h12"/></svg>Add / Update Item</button>
           <div class="qa-grid"><button class="btn" data-go="items"><svg class="ic" viewBox="0 0 20 20"><path d="M10 2 3 6v8l7 4 7-4V6z"/><path d="M3 6l7 4 7-4"/></svg>My Items</button>
-            <button class="btn" data-go="orders"><svg class="ic" viewBox="0 0 20 20"><rect x="1" y="6" width="10" height="7"/><path d="M11 9h4l3 3v1h-7z"/><circle cx="5" cy="15" r="1.5"/><circle cx="15" cy="15" r="1.5"/></svg>Track Orders</button></div></div>
+            <button class="btn" data-go="orders"><svg class="ic" viewBox="0 0 20 20"><rect x="1" y="6" width="10" height="7"/><path d="M11 9h4l3 3v1h-7z"/><circle cx="5" cy="15" r="1.5"/><circle cx="15" cy="15" r="1.5"/></svg>Track Orders</button></div>
+          <div class="loc-hint" id="locHint" hidden><b>Retailers can't find you by distance yet.</b> Save your shop location so you show up in "wholesalers within 5 km".</div>
+          <a class="btn block" id="locBtn" href="/set-location" style="margin-top:10px;text-decoration:none"><svg class="ic" viewBox="0 0 20 20"><path d="M10 18s6-5.2 6-10a6 6 0 0 0-12 0c0 4.8 6 10 6 10z"/><circle cx="10" cy="8" r="2"/></svg><span id="locBtnTxt">Set shop location</span></a></div>
         <div class="card side-card"><div class="panel-head"><svg class="ic" viewBox="0 0 20 20"><circle cx="10" cy="7" r="3"/><path d="M4 17c0-3 2.5-5 6-5s6 2 6 5"/></svg><h3>Top Retailers</h3></div><div id="topRetailers"></div></div>
         <div class="card side-card"><div class="panel-head"><svg class="ic" viewBox="0 0 20 20" style="color:var(--danger)"><path d="M10 3l8 14H2z"/><path d="M10 8v4"/><path d="M10 14.5v.1"/></svg><h3>Low Stock Alerts</h3><button class="link" data-go="items">View All →</button></div><div id="lowStock"></div></div>
         <div class="card side-card"><div class="panel-head"><svg class="ic" viewBox="0 0 20 20"><circle cx="10" cy="10" r="7"/><path d="M8 8a2 2 0 1 1 3 1.7c-.7.4-1 .9-1 1.6"/><path d="M10 14.2v.1"/></svg><h3>How orders flow</h3></div>
@@ -643,8 +647,18 @@ $("npAll").onclick = e => { e.stopPropagation(); markRead(); };
 $("np").onclick = e => e.stopPropagation();
 document.addEventListener("click", () => { if ($("np").classList.contains("open")) { $("np").classList.remove("open"); markRead(); } });
 
+async function loadLoc() {
+  try {
+    const r = await fetch(`/location?role=wholesaler&account_id=${WID}`);
+    if (!r.ok) return;
+    const d = await r.json(), has = d.lat != null && d.lng != null;
+    $("locHint").hidden = has;
+    $("locBtnTxt").textContent = has ? "Update shop location" : "Set shop location";
+  } catch (e) {}
+}
+
 renderBell(); renderAll();
-loadItems(); loadOrders();
+loadItems(); loadOrders(); loadLoc();
 setInterval(loadOrders, 6000); setInterval(loadItems, 15000);
 </script>
 </body>

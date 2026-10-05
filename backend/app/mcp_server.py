@@ -22,7 +22,7 @@ from pathlib import Path
 from mcp.server.fastmcp import FastMCP
 from mcp.server.transport_security import TransportSecuritySettings
 
-from . import models, restock, tools
+from . import models, nearby, restock, tools
 from .database import SessionLocal
 
 PUBLIC_HOST = os.environ.get("VOICESTOCK_PUBLIC_HOST", "voicestock-abinash.duckdns.org")
@@ -170,6 +170,28 @@ def build_mcp():
         def run(db, s):
             return tools.find_best_wholesaler(db, product_name) or {
                 "found": False, "message": f"No wholesaler currently has '{product_name}'."}
+        return _with_db(run)
+
+    @mcp.tool()
+    def list_wholesalers(max_km: float = None) -> dict:
+        """Wholesalers that have items in stock, nearest first, with distance in km (straight-line). Pass max_km to
+        only get wholesalers within that range, e.g. 5. If the owner's shop location isn't saved, the result says so."""
+        return _with_db(lambda db, s: nearby.list_wholesalers(db, s, max_km))
+
+    @mcp.tool()
+    def wholesaler_items(wholesaler_name: str) -> dict:
+        """Everything one wholesaler has in stock, with price per unit and quantity. The name can be approximate;
+        if several match, the result asks which one."""
+        return _with_db(lambda db, s: nearby.wholesaler_items(db, s, wholesaler_name))
+
+    @mcp.tool()
+    def order_from_wholesaler(product_name: str, quantity: int, wholesaler_name: str = None) -> dict:
+        """Place one order. With wholesaler_name it orders from that wholesaler; without it, from the cheapest one.
+        Tell the owner the wholesaler, quantity and total price and get a clear yes BEFORE calling this."""
+        def run(db, s):
+            if wholesaler_name:
+                return nearby.order_from_specific(db, s, wholesaler_name, product_name, quantity)
+            return tools.place_wholesale_order(db, s, product_name, quantity)
         return _with_db(run)
 
     @mcp.tool()
