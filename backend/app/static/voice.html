@@ -265,6 +265,9 @@ var __n=parseInt(__c[0].slice(1),16);__r.style.setProperty("--accent-dim","rgba(
   .toast .tt{font-size:var(--fs-sm);font-weight:700;} .toast .ts{font-size:var(--fs-xs);color:var(--text-dim);margin-top:2px;}
   @keyframes toastin{from{opacity:0;transform:translateY(-8px);}to{opacity:1;transform:none;}}
   .dash-hint{font-size:var(--fs-xs);color:var(--accent);margin-top:10px;min-height:1.2em;}
+  .wake-line{font-size:var(--fs-xs);color:var(--text-faint);margin-top:6px;min-height:1.3em;overflow-wrap:anywhere;}
+  .wake-line i{color:var(--text-dim);} .wake-line a{color:var(--accent);cursor:pointer;text-decoration:underline;margin-left:6px;}
+  .wake-line.bad{color:var(--warning);}
 
   .hwave{display:none;align-items:center;gap:4px;height:48px;position:absolute;right:232px;top:16px;pointer-events:none;}
   .hwave span{width:3px;border-radius:2px;height:var(--h,10px);opacity:0.9;}
@@ -951,6 +954,7 @@ var __n=parseInt(__c[0].slice(1),16);__r.style.setProperty("--accent-dim","rgba(
             <button class="dchip" id="dChipConvo"><svg class="ic" viewBox="0 0 20 20"><path d="M3 5h14v8H8l-3 3v-3H3z"/></svg>Conversation</button>
           </div>
           <p class="dash-hint" id="dashHint"></p>
+          <p class="wake-line" id="wakeLine"></p>
           <div class="panel" id="dConvoPanel" style="margin-top:8px;">
             <div class="panel-inner" id="dTranscript">
               <div class="empty-note">Nothing said yet — start talking and it'll show up here.</div>
@@ -1604,23 +1608,24 @@ var micOpen = false, followUpOpen = false, followUpPending = false, openOnConnec
 var openedAt = 0, lastSpeechAt = 0, heardSpeech = false, lastAudioAt = 0, assistantTail = "", noiseFloor = 0.004;
 var GATE_SILENCE_MS = 1800, GATE_NOSPEECH_MS = 8000;
 function tapMode() { return prefs.voice.mode !== "always"; }
-var preroll = [], PREROLL_CHUNKS = 5, wakeFailed = false;
+var preroll = [], PREROLL_CHUNKS = 5, wakeFailed = false, followChain = 0;
 function wakeSupported() { return !!(window.SpeechRecognition || window.webkitSpeechRecognition); }
 function wakeOn() { return prefs.voice.mode === "wake" && wakeSupported() && !wakeFailed; }
 function applyMicUI() {
   if (!isListening) micOpen = false;
   if (!isListening || !tapMode()) return;
-  const idleText = wakeOn() ? "Say “Hey Stock” or tap the mic" : "Tap the mic to talk";
+  const idleText = wakeOn() ? `Say “${wakeLabel()}” or tap the mic` : "Tap the mic to talk";
   const t = micOpen ? (followUpOpen ? "Listening — go ahead" : "Listening — speak now") : idleText;
   statusLine.innerText = t;
   wave.classList.toggle("active", micOpen);
   if (dStatusLine) dStatusLine.innerText = t;
   if (dWave) dWave.classList.toggle("active", micOpen);
-  if (dMicBtn) { dMicBtn.classList.toggle("listening", micOpen); dMicBtn.title = micOpen ? "Tap to stop" : (wakeOn() ? "Say Hey Stock, or tap" : "Tap to talk"); }
-  if (dashStatusPillText) dashStatusPillText.innerText = micOpen ? "Listening" : (wakeOn() ? "Say “Hey Stock”" : "Tap to talk");
+  if (dMicBtn) { dMicBtn.classList.toggle("listening", micOpen); dMicBtn.title = micOpen ? "Tap to stop" : (wakeOn() ? `Say ${wakeLabel()}, or tap` : "Tap to talk"); }
+  if (dashStatusPillText) dashStatusPillText.innerText = micOpen ? "Listening" : (wakeOn() ? `Say “${wakeLabel()}”` : "Tap to talk");
 }
 function openTalk(followup) {
   if (!isListening) return false;
+  if (!followup) followChain = 0;                 // a fresh wake word or tap starts a new conversation
   micOpen = true; followUpOpen = !!followup; followUpPending = false;
   openedAt = Date.now(); lastSpeechAt = openedAt; heardSpeech = false;
   applyMicUI(); return true;
@@ -1650,7 +1655,8 @@ setInterval(() => {                    // after a question, listen once for the 
   if (!tapMode() || !isListening || micOpen || !followUpPending || !playbackContext) return;
   if (!(playbackContext.currentTime >= nextStartTime - 0.05 && Date.now() - lastAudioAt > 900)) return;
   followUpPending = false;
-  if (/[?？]\s*$/.test(assistantTail.trim())) openTalk(true);
+  const asked = /[?？]\s*$/.test(assistantTail.trim());
+  if (asked || (wakeOn() && followChain < 3)) { followChain++; openTalk(true); }
 }, 250);
 function startTalking() {
   if (!prefs.voice.enabled) { flash("Voice assistant is off", "Turn it on from Profile → Voice Assistant.", "bad"); return; }
@@ -1662,7 +1668,7 @@ function toggleTalking() {
   if (isListening) stopRow.click(); else startTalking();
 }
 function applyModeChange() {
-  micOpen = false; followUpOpen = false; followUpPending = false; preroll = []; wakeFailed = false;
+  micOpen = false; followUpOpen = false; followUpPending = false; preroll = []; wakeFailed = false; recogFails = 0; wakeInfo.reason = "";
   if (prefs.voice.mode === "wake" && !wakeSupported()) flash("Wake word not available here", "This browser can't hear “Hey Stock”, so tap the mic to talk. Chrome or Edge work.", "bad");
   if (isListening) setStatus("connected", tapMode() ? "Tap the mic to talk" : "Listening — speak anytime!");
 }
@@ -1679,13 +1685,69 @@ document.addEventListener("keydown", e => {
    When it hears it, the gate opens, the last ~1.3 s of audio is replayed (so "Hey Stock, add 20 Maggi" arrives whole),
    and the normal talk window runs. Nothing else is ever sent to the assistant while the gate is closed. */
 var recog = null, recogRunning = false, recogFails = 0, recogNextTry = 0;
-var WAKE_PHRASES = [" hey stock ", " hay stock ", " hey stack ", " hey stuck ", " hey stalk ", " hey stok ", " hi stock ",
-  " hello stock ", " ok stock ", " okay stock ", " hey voicestock ", " hey voice stock ", " voicestock ", " voice stock ",
-  " हे स्टॉक ", " हेलो स्टॉक ", " हे स्टोक ", " हेय स्टॉक ", " वॉइस स्टॉक ", " वॉयस स्टॉक "];
-function matchesWake(t) {
-  const n = " " + String(t || "").toLowerCase().replace(/[^a-z\u0900-\u097f ]/g, " ").replace(/\s+/g, " ").trim() + " ";
-  return WAKE_PHRASES.some(p => n.includes(p));
+var wakeInfo = { heard: "", heardAt: 0, err: "", errAt: 0, reason: "" };
+var WAKE_DEFAULT = "hey stock";
+var HEY_WORDS = ["hey", "hay", "hi", "hello", "ok", "okay", "he", "ae", "a", "हे", "हेय", "हेलो", "हैलो", "ए", "अरे", "ओके"];
+var ALIASES = {
+  stock: ["stock", "stocks", "stack", "stuck", "stalk", "stork", "stok", "stoke", "stog", "sock", "स्टॉक", "स्टोक", "स्टाक", "स्टक", "स्टाॅक"],
+  voicestock: ["voicestock", "voicestocks", "voice stock", "वॉइसस्टॉक", "वॉयसस्टॉक"],
+  voice: ["voice", "voyce", "vice", "वॉइस", "वॉयस", "वोइस"]
+};
+function wakePhrase() {
+  try { return (localStorage.getItem(`vs_wake_${SHOP_ID}`) || WAKE_DEFAULT).trim() || WAKE_DEFAULT; } catch (e) { return WAKE_DEFAULT; }
 }
+function wakeLabel() { return wakePhrase().replace(/\b\w/g, c => c.toUpperCase()); }
+function wakeWords(t) {
+  return String(t || "").toLowerCase().replace(/[^a-z\u0900-\u097f ]/g, " ").replace(/\s+/g, " ").trim().split(" ").filter(Boolean);
+}
+function editDist(a, b) {
+  const m = a.length, n = b.length; if (!m) return n; if (!n) return m;
+  let prev = Array.from({ length: n + 1 }, (_, j) => j);
+  for (let i = 1; i <= m; i++) {
+    const cur = [i];
+    for (let j = 1; j <= n; j++) cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+    prev = cur;
+  }
+  return prev[n];
+}
+function fold(w) {       // spell alike what sounds alike, so "munshee" = "munshi", "wholesale" = "vholesale"
+  return w.replace(/ee|ea|ie|ey/g, "i").replace(/oo|ou/g, "u").replace(/aa/g, "a").replace(/ph/g, "f").replace(/w/g, "v").replace(/y$/, "i");
+}
+function tokenOk(spoken, want) {
+  if (spoken === want) return true;
+  if (want === "hey") return HEY_WORDS.includes(spoken);
+  if (ALIASES[want] && ALIASES[want].includes(spoken)) return true;
+  return want.length >= 5 && spoken.length >= 4 && editDist(fold(spoken), fold(want)) <= 1;     // forgiving for longer custom words
+}
+function matchesWake(t) {
+  const sp = wakeWords(t);
+  if (!sp.length) return false;
+  const phrase = wakeWords(wakePhrase());
+  const variants = [phrase];
+  if (phrase.join(" ") === WAKE_DEFAULT) variants.push(["voicestock"], ["voice", "stock"]);
+  return variants.some(v => {
+    for (let i = 0; i + v.length <= sp.length; i++) {
+      if (v.every((w, j) => tokenOk(sp[i + j], w))) return true;
+    }
+    return false;
+  });
+}
+function wakeWanted() { return wakeOn() && isListening && !micOpen && !assistantPlaying(); }
+function renderWakeLine() {
+  const el = document.getElementById("wakeLine"), box = document.getElementById("wakeHeardBox");
+  const fresh = wakeInfo.heard && Date.now() - wakeInfo.heardAt < 8000;
+  const heard = fresh ? `heard: <i>“${esc(wakeInfo.heard)}”</i>` : "";
+  if (box) box.innerHTML = wakeOn() ? (fresh ? `<i>“${esc(wakeInfo.heard)}”</i>` : "Say your wake phrase…") : "The wake word isn't running right now.";
+  if (!el) return;
+  el.className = "wake-line";
+  if (prefs.voice.mode !== "wake" || !isListening) { el.innerHTML = ""; return; }
+  if (!wakeSupported()) { el.className = "wake-line bad"; el.innerHTML = "This browser can't hear a wake word. Use Chrome or Edge, or tap the mic."; return; }
+  if (wakeFailed) { el.className = "wake-line bad"; el.innerHTML = `Wake word is off: ${esc(wakeInfo.reason || "the speech service stopped")}. <a id="wakeRetry">Try again</a>`; return; }
+  if (micOpen) { el.innerHTML = ""; return; }
+  const err = wakeInfo.err && Date.now() - wakeInfo.errAt < 6000 ? ` <span style="color:var(--warning)">(${esc(wakeInfo.err)})</span>` : "";
+  el.innerHTML = recogRunning ? `👂 Listening for “${esc(wakeLabel())}” ${heard}${err}` : `Starting the wake word…${err}`;
+}
+document.addEventListener("click", (e) => { if (e.target && e.target.id === "wakeRetry") { wakeFailed = false; recogFails = 0; recogNextTry = 0; wakeInfo.reason = ""; wakeInfo.err = ""; applyMicUI(); renderWakeLine(); } });
 function assistantPlaying() { return !!playbackContext && playbackContext.currentTime < nextStartTime - 0.05; }
 function wakeChime() {
   if (!prefs.notifications.sound) return;
@@ -1713,35 +1775,50 @@ function startWake() {
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   try {
     recog = new SR();
-    recog.lang = "en-IN"; recog.continuous = true; recog.interimResults = true; recog.maxAlternatives = 3;
-    recog.onstart = () => { recogRunning = true; };
+    recog.lang = "en-IN"; recog.continuous = true; recog.interimResults = true; recog.maxAlternatives = 5;
+    recog.onstart = () => { recogRunning = true; renderWakeLine(); };
     recog.onresult = (e) => {
-      recogFails = 0;
+      recogFails = 0; wakeInfo.err = "";
+      let last = "";
       for (let i = e.resultIndex; i < e.results.length; i++) {
         for (let a = 0; a < e.results[i].length; a++) {
-          if (matchesWake(e.results[i][a].transcript)) { wakeTriggered(); return; }
+          const tr = e.results[i][a].transcript;
+          if (a === 0) last = tr;
+          if (matchesWake(tr)) { wakeInfo.heard = tr.trim(); wakeInfo.heardAt = Date.now(); wakeTriggered(); renderWakeLine(); return; }
         }
       }
+      if (last) { wakeInfo.heard = last.trim(); wakeInfo.heardAt = Date.now(); renderWakeLine(); }
     };
     recog.onerror = (e) => {
       if (e.error === "no-speech" || e.error === "aborted") return;
-      if (e.error === "not-allowed" || e.error === "service-not-allowed") { wakeGiveUp("The browser blocked the speech service."); return; }
-      if (++recogFails >= 6) wakeGiveUp("The speech service isn't reachable.");
+      wakeInfo.err = e.error || "error"; wakeInfo.errAt = Date.now();
+      if (e.error === "not-allowed" || e.error === "service-not-allowed") { wakeGiveUp("the browser blocked the speech service"); return; }
+      if (++recogFails >= 6) wakeGiveUp("the speech service isn't reachable");
+      renderWakeLine();
     };
-    recog.onend = () => { recogRunning = false; recogNextTry = Date.now() + (recogFails ? Math.min(8000, 800 * recogFails) : 250); };
+    recog.onend = () => {
+      recogRunning = false;
+      recogNextTry = Date.now() + (recogFails ? Math.min(8000, 800 * recogFails) : 0);
+      if (!recogFails) setTimeout(() => { if (wakeWanted() && !recogRunning) startWake(); }, 40);   // restart at once, no deaf gap
+      renderWakeLine();
+    };
     recogRunning = true;
     recog.start();
-  } catch (e) { recogRunning = false; if (++recogFails >= 6) wakeGiveUp("Couldn't start the speech service."); }
+  } catch (e) {
+    recogRunning = false; wakeInfo.err = "start failed"; wakeInfo.errAt = Date.now();
+    if (++recogFails >= 6) wakeGiveUp("it couldn't start the speech service");
+  }
 }
 function wakeGiveUp(why) {
-  wakeFailed = true; stopWake(); preroll = [];
-  flash("Wake word switched off", why + " Tap the mic to talk instead.", "bad");
-  applyMicUI();
+  wakeFailed = true; wakeInfo.reason = why; stopWake(); preroll = [];
+  flash("Wake word switched off", "Because " + why + ". Tap the mic to talk instead.", "bad");
+  applyMicUI(); renderWakeLine();
 }
 setInterval(() => {                    // keep the recognizer running exactly when it should
-  const want = wakeOn() && isListening && !micOpen && !assistantPlaying();
+  const want = wakeWanted();
   if (want && !recogRunning && Date.now() >= recogNextTry) startWake();
   else if (!want && recogRunning) stopWake();
+  renderWakeLine();
 }, 400);
 
 async function ensureMic() {
@@ -2313,6 +2390,7 @@ function renderProfile() {
       ${rowBtn("globe", "Language", "Select your preferred language", langLabel(v.language), "lang")}
       ${rowBtn("wave", "Voice &amp; Tone", "Choose the assistant's voice", voiceLabel(v.voice), "voice")}
       ${rowBtn("mic", "Listening Mode", "When the assistant listens", modeLabel(v.mode), "mode")}
+      ${v.mode === "wake" ? rowBtn("mic", "Wake Phrase", "What you say to wake it", wakeLabel(), "wakephrase") : ""}
       ${rowBtn("mic", "Microphone &amp; Permissions", "Manage microphone access", "", "mic")}
       ${rowBtn("history", "Voice History", "View your past voice interactions", "", "vhist")}
       <div class="pf-test"><span class="pf-play">${ico("play")}</span>
@@ -2586,6 +2664,23 @@ async function openVoiceHistory() {
     drawerBody.innerHTML = '<div class="empty-note">Couldn\'t load your history.</div>';
   }
 }
+function openWakePhrase() {
+  openDrawer(dhead("Wake Phrase", "What you say before a command"),
+    `<div class="pf-help">Pick a phrase your browser hears clearly. Two or three words work best, like “Hey Stock”, “Hey Dukaan” or “Hello Munshi”. Say it and watch the box below: if it shows what you said, the wake word will work.</div>` +
+    field("pfWake", "Wake phrase", wakePhrase(), 'maxlength="30" autocomplete="off"') +
+    `<div class="pf-field"><label>The browser hears</label><div class="pf-input" id="wakeHeardBox" style="height:auto;min-height:40px;padding:10px 12px;line-height:1.4;"></div></div>` +
+    `<div class="pf-err" id="pfErr"></div><button class="pf-btn primary block" id="pfSave">Save</button>` +
+    `<button class="pf-btn block" id="pfWakeReset" style="margin-top:10px">Back to “Hey Stock”</button>`);
+  const save = (v) => {
+    const words = wakeWords(v);
+    if (words.length < 2 || words.join("").length < 5) { document.getElementById("pfErr").textContent = "Use at least two words, for example “Hey Stock”."; return false; }
+    try { localStorage.setItem(`vs_wake_${SHOP_ID}`, words.join(" ")); } catch (e) {}
+    renderProfile(); applyMicUI(); renderWakeLine(); return true;
+  };
+  document.getElementById("pfSave").onclick = () => { if (save(document.getElementById("pfWake").value)) { closeDrawer(); flash("Saved", `Say “${wakeLabel()}” to wake it.`, "ok"); } };
+  document.getElementById("pfWakeReset").onclick = () => { try { localStorage.removeItem(`vs_wake_${SHOP_ID}`); } catch (e) {} closeDrawer(); renderProfile(); applyMicUI(); renderWakeLine(); flash("Saved", "Say “Hey Stock” to wake it.", "ok"); };
+  renderWakeLine();
+}
 function openSound() {
   const n = prefs.notifications;
   openDrawer(dhead("Sound & Vibration", "How notifications alert you"),
@@ -2654,6 +2749,7 @@ function pfAct(act) {
     case "security": openSecurity(); break;
     case "lang": openOptions("Language", "How the assistant replies", LANGS, prefs.voice.language, id => setPref("voice", "language", id)); break;
     case "voice": openOptions("Voice & Tone", "Pick the assistant's voice", VOICES, prefs.voice.voice, id => setPref("voice", "voice", id)); break;
+    case "wakephrase": openWakePhrase(); break;
     case "mode": openOptions("Listening Mode", "When should the assistant listen?", MODES, prefs.voice.mode, id => setPref("voice", "mode", id)); break;
     case "mic": openMic(); break;
     case "vhist": openVoiceHistory(); break;
