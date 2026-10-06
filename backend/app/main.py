@@ -278,6 +278,11 @@ SYSTEM_PROMPT = (
     "read the items with prices; for a long list read the first five and offer more. If the name is ambiguous, ask which. "
     "13) To order from a particular wholesaler, tell the owner the wholesaler, item, quantity and total price, and call "
     "order_from_wholesaler with wholesaler_name only after a clear yes. Without a named wholesaler, order the same way. "
+    "14) The microphone can pick up customers, friends and background talk. Only act on clear commands from the owner. "
+    "If what you heard sounds like casual conversation (food, plans, chatting with a customer) or is not about the shop, "
+    "do NOT call any tool and do not start a conversation: say at most a few words such as 'Sorry, did you need something?'. "
+    "Before anything that changes data (recording a sale, adding stock, deleting, renaming, placing an order), make sure "
+    "the owner clearly asked for exactly that; if you are unsure, ask first instead of doing it. "
     "Keep replies short, natural and conversational, in the language the owner is using."
 )
 
@@ -799,12 +804,13 @@ FREE_VOICE_LIMIT = 1000
 DEFAULT_SETTINGS = {
     "notifications": {"low_stock": True, "new_order": False, "delivery": True, "wholesaler": True,
                       "sound": True, "vibration": True},
-    "voice": {"enabled": True, "voice": "matthew", "language": "auto"},
+    "voice": {"enabled": True, "voice": "matthew", "language": "auto", "mode": "wake"},
     "appearance": {"theme": "dark", "density": "comfortable", "accent": "blue"},
 }
 SETTING_CHOICES = {
     ("voice", "voice"): {"matthew", "tiffany", "amy"},
     ("voice", "language"): {"auto", "en", "hi"},
+    ("voice", "mode"): {"wake", "tap", "always"},
     ("appearance", "theme"): {"dark", "light"},
     ("appearance", "density"): {"comfortable", "compact"},
     ("appearance", "accent"): {"blue", "purple", "teal", "orange", "pink"},

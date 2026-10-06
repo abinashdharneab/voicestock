@@ -1125,7 +1125,7 @@ if (!SHOP_ID) {
 const PREFS_KEY = `vs_prefs_${SHOP_ID}`;
 const PREF_DEFAULTS = {
   notifications: { low_stock: true, new_order: false, delivery: true, wholesaler: true, sound: true, vibration: true },
-  voice: { enabled: true, voice: "matthew", language: "auto" },
+  voice: { enabled: true, voice: "matthew", language: "auto", mode: "wake" },
   appearance: { theme: "dark", density: "comfortable", accent: "blue" }
 };
 const ACCENTS = {
@@ -1299,6 +1299,7 @@ function setStatus(state, text) {
     dashStatusPill.classList.toggle("on", state === "connected");
     dashStatusPillText.innerText = state === "connected" ? "Listening" : (state === "connecting" ? "Connecting…" : "Paused");
   }
+  applyMicUI();
 }
 
 function addBubble(role, text) {
@@ -1375,14 +1376,7 @@ function goToView(view, opts) {
   }
 }
 
-document.getElementById("dMicBtn")?.addEventListener("click", () => {
-  if (isListening) {
-    stopRow.click();
-  } else {
-    resumeRow.classList.remove("disabled");
-    resumeRow.click();
-  }
-});
+document.getElementById("dMicBtn")?.addEventListener("click", () => toggleTalking());
 
 document.getElementById("dChipConvo")?.addEventListener("click", () => {
   document.getElementById("dConvoPanel").classList.toggle("open");
@@ -1603,6 +1597,153 @@ async function loadOrdersForNotifs() {
 loadOrdersForNotifs();
 setInterval(loadOrdersForNotifs, 5000);
 
+/* ---------------- TALK GATE: "Tap to talk" vs "Always listening" ----------------
+   In tap mode the microphone is muted (digital silence is sent, so the stream stays alive) until you tap the mic.
+   It closes by itself after you stop talking. If the assistant asks a question it listens once more for a reply. */
+var micOpen = false, followUpOpen = false, followUpPending = false, openOnConnect = false;
+var openedAt = 0, lastSpeechAt = 0, heardSpeech = false, lastAudioAt = 0, assistantTail = "", noiseFloor = 0.004;
+var GATE_SILENCE_MS = 1800, GATE_NOSPEECH_MS = 8000;
+function tapMode() { return prefs.voice.mode !== "always"; }
+var preroll = [], PREROLL_CHUNKS = 5, wakeFailed = false;
+function wakeSupported() { return !!(window.SpeechRecognition || window.webkitSpeechRecognition); }
+function wakeOn() { return prefs.voice.mode === "wake" && wakeSupported() && !wakeFailed; }
+function applyMicUI() {
+  if (!isListening) micOpen = false;
+  if (!isListening || !tapMode()) return;
+  const idleText = wakeOn() ? "Say “Hey Stock” or tap the mic" : "Tap the mic to talk";
+  const t = micOpen ? (followUpOpen ? "Listening — go ahead" : "Listening — speak now") : idleText;
+  statusLine.innerText = t;
+  wave.classList.toggle("active", micOpen);
+  if (dStatusLine) dStatusLine.innerText = t;
+  if (dWave) dWave.classList.toggle("active", micOpen);
+  if (dMicBtn) { dMicBtn.classList.toggle("listening", micOpen); dMicBtn.title = micOpen ? "Tap to stop" : (wakeOn() ? "Say Hey Stock, or tap" : "Tap to talk"); }
+  if (dashStatusPillText) dashStatusPillText.innerText = micOpen ? "Listening" : (wakeOn() ? "Say “Hey Stock”" : "Tap to talk");
+}
+function openTalk(followup) {
+  if (!isListening) return false;
+  micOpen = true; followUpOpen = !!followup; followUpPending = false;
+  openedAt = Date.now(); lastSpeechAt = openedAt; heardSpeech = false;
+  applyMicUI(); return true;
+}
+function closeTalk() {
+  if (!micOpen) return;
+  micOpen = false; followUpOpen = false; applyMicUI();
+}
+function gateTick(input) {            // true = send the real microphone, false = send silence
+  if (!tapMode()) return true;
+  let sum = 0;
+  for (let i = 0; i < input.length; i++) sum += input[i] * input[i];
+  const rms = Math.sqrt(sum / input.length), now = Date.now();
+  const loud = rms > Math.min(0.08, Math.max(0.012, noiseFloor * 3));
+  if (!loud) noiseFloor = noiseFloor * 0.95 + rms * 0.05;
+  if (micOpen) {
+    if (loud) { heardSpeech = true; lastSpeechAt = now; }
+    if (heardSpeech && now - lastSpeechAt > GATE_SILENCE_MS) closeTalk();
+    else if (!heardSpeech && now - openedAt > GATE_NOSPEECH_MS) closeTalk();
+  }
+  return micOpen;
+}
+function trackTranscript(role, text) {
+  assistantTail = role === "assistant" ? (assistantTail + " " + text).slice(-120) : "";
+}
+setInterval(() => {                    // after a question, listen once for the answer
+  if (!tapMode() || !isListening || micOpen || !followUpPending || !playbackContext) return;
+  if (!(playbackContext.currentTime >= nextStartTime - 0.05 && Date.now() - lastAudioAt > 900)) return;
+  followUpPending = false;
+  if (/[?？]\s*$/.test(assistantTail.trim())) openTalk(true);
+}, 250);
+function startTalking() {
+  if (!prefs.voice.enabled) { flash("Voice assistant is off", "Turn it on from Profile → Voice Assistant.", "bad"); return; }
+  if (tapMode() && isListening) { openTalk(); return; }
+  if (!isListening) { if (tapMode()) openOnConnect = true; resumeRow.classList.remove("disabled"); resumeRow.click(); }
+}
+function toggleTalking() {
+  if (tapMode() && isListening) { micOpen ? closeTalk() : openTalk(); return; }
+  if (isListening) stopRow.click(); else startTalking();
+}
+function applyModeChange() {
+  micOpen = false; followUpOpen = false; followUpPending = false; preroll = []; wakeFailed = false;
+  if (prefs.voice.mode === "wake" && !wakeSupported()) flash("Wake word not available here", "This browser can't hear “Hey Stock”, so tap the mic to talk. Chrome or Edge work.", "bad");
+  if (isListening) setStatus("connected", tapMode() ? "Tap the mic to talk" : "Listening — speak anytime!");
+}
+document.addEventListener("keydown", e => {
+  if (e.code !== "Space" || e.repeat) return;
+  const el = document.activeElement, tag = el && el.tagName;
+  if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || tag === "BUTTON" || (el && el.isContentEditable)) return;
+  if (document.getElementById("homeView").style.display === "none") return;
+  e.preventDefault(); toggleTalking();
+});
+
+/* ---------------- WAKE WORD: "Hey Stock" ----------------
+   While the gate is closed the browser's speech recognition listens only for the wake phrase.
+   When it hears it, the gate opens, the last ~1.3 s of audio is replayed (so "Hey Stock, add 20 Maggi" arrives whole),
+   and the normal talk window runs. Nothing else is ever sent to the assistant while the gate is closed. */
+var recog = null, recogRunning = false, recogFails = 0, recogNextTry = 0;
+var WAKE_PHRASES = [" hey stock ", " hay stock ", " hey stack ", " hey stuck ", " hey stalk ", " hey stok ", " hi stock ",
+  " hello stock ", " ok stock ", " okay stock ", " hey voicestock ", " hey voice stock ", " voicestock ", " voice stock ",
+  " हे स्टॉक ", " हेलो स्टॉक ", " हे स्टोक ", " हेय स्टॉक ", " वॉइस स्टॉक ", " वॉयस स्टॉक "];
+function matchesWake(t) {
+  const n = " " + String(t || "").toLowerCase().replace(/[^a-z\u0900-\u097f ]/g, " ").replace(/\s+/g, " ").trim() + " ";
+  return WAKE_PHRASES.some(p => n.includes(p));
+}
+function assistantPlaying() { return !!playbackContext && playbackContext.currentTime < nextStartTime - 0.05; }
+function wakeChime() {
+  if (!prefs.notifications.sound) return;
+  try {
+    _actx = _actx || new (window.AudioContext || window.webkitAudioContext)();
+    if (_actx.state === "suspended") _actx.resume();
+    const t = _actx.currentTime, o = _actx.createOscillator(), g = _actx.createGain();
+    o.type = "sine"; o.frequency.value = 1320;
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.12, t + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.16);
+    o.connect(g); g.connect(_actx.destination); o.start(t); o.stop(t + 0.18);
+  } catch (e) {}
+}
+function wakeTriggered() {
+  if (micOpen || !isListening || assistantPlaying()) return;
+  stopWake();
+  if (!openTalk(false)) return;
+  if (ws && ws.readyState === WebSocket.OPEN) preroll.forEach(b => ws.send(b));
+  preroll = [];
+  wakeChime();
+}
+function stopWake() {
+  if (recog) { try { recog.abort(); } catch (e) {} }
+}
+function startWake() {
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  try {
+    recog = new SR();
+    recog.lang = "en-IN"; recog.continuous = true; recog.interimResults = true; recog.maxAlternatives = 3;
+    recog.onstart = () => { recogRunning = true; };
+    recog.onresult = (e) => {
+      recogFails = 0;
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        for (let a = 0; a < e.results[i].length; a++) {
+          if (matchesWake(e.results[i][a].transcript)) { wakeTriggered(); return; }
+        }
+      }
+    };
+    recog.onerror = (e) => {
+      if (e.error === "no-speech" || e.error === "aborted") return;
+      if (e.error === "not-allowed" || e.error === "service-not-allowed") { wakeGiveUp("The browser blocked the speech service."); return; }
+      if (++recogFails >= 6) wakeGiveUp("The speech service isn't reachable.");
+    };
+    recog.onend = () => { recogRunning = false; recogNextTry = Date.now() + (recogFails ? Math.min(8000, 800 * recogFails) : 250); };
+    recogRunning = true;
+    recog.start();
+  } catch (e) { recogRunning = false; if (++recogFails >= 6) wakeGiveUp("Couldn't start the speech service."); }
+}
+function wakeGiveUp(why) {
+  wakeFailed = true; stopWake(); preroll = [];
+  flash("Wake word switched off", why + " Tap the mic to talk instead.", "bad");
+  applyMicUI();
+}
+setInterval(() => {                    // keep the recognizer running exactly when it should
+  const want = wakeOn() && isListening && !micOpen && !assistantPlaying();
+  if (want && !recogRunning && Date.now() >= recogNextTry) startWake();
+  else if (!want && recogRunning) stopWake();
+}, 400);
+
 async function ensureMic() {
   if (!stream) stream = await navigator.mediaDevices.getUserMedia({ audio: true });
   if (!audioContext) {
@@ -1613,11 +1754,19 @@ async function ensureMic() {
     processor.connect(audioContext.destination);
     processor.onaudioprocess = (e) => {
       const input = e.inputBuffer.getChannelData(0);
+      const open = gateTick(input);
       const pcm16 = new Int16Array(input.length);
-      for (let i = 0; i < input.length; i++) {
-        pcm16[i] = Math.max(-1, Math.min(1, input[i])) * 0x7FFF;
+      if (open || wakeOn()) {
+        for (let i = 0; i < input.length; i++) {
+          pcm16[i] = Math.max(-1, Math.min(1, input[i])) * 0x7FFF;
+        }
       }
-      if (ws && ws.readyState === WebSocket.OPEN) ws.send(pcm16.buffer);
+      if (open) {
+        if (ws && ws.readyState === WebSocket.OPEN) ws.send(pcm16.buffer);
+      } else {
+        if (wakeOn()) { preroll.push(pcm16.buffer); if (preroll.length > PREROLL_CHUNKS) preroll.shift(); }   // last ~1.3 s, replayed when the wake word is heard
+        if (ws && ws.readyState === WebSocket.OPEN) ws.send(new Int16Array(input.length).buffer);          // silence keeps the stream alive
+      }
     };
   }
   if (!playbackContext) {
@@ -1639,16 +1788,21 @@ async function connect() {
   ws = new WebSocket(`${wsProtocol}://${window.location.host}/ws/voice?account_id=${SHOP_ID}`);
   ws.binaryType = "arraybuffer";
 
-  ws.onopen = () => setStatus("connected", "Listening — speak anytime!");
+  ws.onopen = () => {
+    setStatus("connected", "Listening — speak anytime!");
+    if (openOnConnect) { openOnConnect = false; openTalk(); }
+  };
 
   ws.onmessage = async (event) => {
     if (typeof event.data === "string") {
       const msg = JSON.parse(event.data);
       if (msg.type === "transcript" && msg.text && msg.text.trim()) {
         addBubble(msg.role, msg.text);
+        trackTranscript(msg.role, msg.text);
       }
     } else {
       if (!playbackContext) return;
+      lastAudioAt = Date.now(); followUpPending = true;
       const int16Array = new Int16Array(event.data);
       const float32Array = new Float32Array(int16Array.length);
       for (let i = 0; i < int16Array.length; i++) float32Array[i] = int16Array[i] / 32768.0;
@@ -1678,6 +1832,7 @@ stopRow.onclick = () => {
   manuallyStopped = true;
   clearTimeout(reconnectTimer);
   if (ws) ws.close();
+  micOpen = false;
   setStatus("stopped", "Stopped — tap Resume to continue");
 };
 
@@ -2041,6 +2196,11 @@ const VOICES = [
   { id: "tiffany", label: "Tiffany", desc: "Female · US English", short: "Tiffany (Female)" },
   { id: "amy", label: "Amy", desc: "Female · British English", short: "Amy (Female)" }
 ];
+const MODES = [
+  { id: "wake", label: "Hey Stock (hands-free)", desc: "Always ready, but only answers after you say “Hey Stock”. Customers and friends talking nearby are ignored. Uses your browser's speech service just to hear that phrase, so it needs internet and works best in Chrome or Edge.", short: "Hey Stock" },
+  { id: "tap", label: "Tap to talk", desc: "The mic listens only after you tap it, then stops by itself. Best when customers or friends are around.", short: "Tap to talk" },
+  { id: "always", label: "Always listening", desc: "Hears everything in the shop, including customers and friends, and may answer or act on it.", short: "Always listening" }
+];
 const LANGS = [
   { id: "auto", label: "Auto", desc: "Understands Hindi, Hinglish and English", short: "Auto" },
   { id: "en", label: "English", desc: "Assistant always replies in English", short: "English" },
@@ -2112,6 +2272,7 @@ function rowSwitch(i, t, s, path, on) {
 function cardHead(i, t, s) {
   return `<div class="pf-card-head"><span class="pf-ico">${ico(i)}</span><div><div class="pf-ct">${t}</div><div class="pf-cs">${s}</div></div></div>`;
 }
+const modeLabel = id => (MODES.find(m => m.id === id) || MODES[0]).short;
 const voiceLabel = id => (VOICES.find(v => v.id === id) || VOICES[0]).short;
 const langLabel = id => (LANGS.find(l => l.id === id) || LANGS[0]).short;
 
@@ -2151,6 +2312,7 @@ function renderProfile() {
       ${rowSwitch("mic", "Voice Assistant", "Enable or disable voice assistant", "voice.enabled", v.enabled)}
       ${rowBtn("globe", "Language", "Select your preferred language", langLabel(v.language), "lang")}
       ${rowBtn("wave", "Voice &amp; Tone", "Choose the assistant's voice", voiceLabel(v.voice), "voice")}
+      ${rowBtn("mic", "Listening Mode", "When the assistant listens", modeLabel(v.mode), "mode")}
       ${rowBtn("mic", "Microphone &amp; Permissions", "Manage microphone access", "", "mic")}
       ${rowBtn("history", "Voice History", "View your past voice interactions", "", "vhist")}
       <div class="pf-test"><span class="pf-play">${ico("play")}</span>
@@ -2264,6 +2426,7 @@ async function setPref(group, key, value) {
   renderProfile();
   if (group === "voice" && key === "enabled") applyVoiceEnabled(value);
   if (group === "voice" && (key === "voice" || key === "language")) reconnectVoice();
+  if (group === "voice" && key === "mode") applyModeChange();
 }
 function togglePath(path) {
   const [g, k] = path.split(".");
@@ -2477,7 +2640,7 @@ function openLogout() {
 function tryVoice() {
   if (!prefs.voice.enabled) { flash("Voice assistant is off", "Turn it on first.", "bad"); return; }
   goToView("home");
-  if (!isListening) { resumeRow.classList.remove("disabled"); resumeRow.click(); }
+  startTalking();
   showHint('Try saying: "Show me current stock of rice"');
   flash("Listening", 'Say: "Show me current stock of rice"', "ok");
 }
@@ -2491,6 +2654,7 @@ function pfAct(act) {
     case "security": openSecurity(); break;
     case "lang": openOptions("Language", "How the assistant replies", LANGS, prefs.voice.language, id => setPref("voice", "language", id)); break;
     case "voice": openOptions("Voice & Tone", "Pick the assistant's voice", VOICES, prefs.voice.voice, id => setPref("voice", "voice", id)); break;
+    case "mode": openOptions("Listening Mode", "When should the assistant listen?", MODES, prefs.voice.mode, id => setPref("voice", "mode", id)); break;
     case "mic": openMic(); break;
     case "vhist": openVoiceHistory(); break;
     case "try": tryVoice(); break;
