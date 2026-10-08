@@ -143,6 +143,9 @@ var __n=parseInt(__c[0].slice(1),16);__r.style.setProperty("--accent-dim","rgba(
   /* ---------------- HOME: hero ---------------- */
   .hero{display:flex;flex-direction:column;align-items:center;text-align:center;margin:14px 0 12px;}
 
+  .home-mobile .wake-line{font-size:var(--fs-xs);color:var(--text-faint);margin-top:8px;min-height:1.3em;overflow-wrap:anywhere;}
+  .home-mobile .wake-line i{color:var(--text-dim);} .home-mobile .wake-line a,.home-mobile .wake-line .wakeRetry{color:var(--accent);cursor:pointer;text-decoration:underline;margin-left:6px;}
+  .home-mobile .wake-line.bad{color:var(--warning);}
   .wave{display:flex;align-items:center;justify-content:center;gap:3px;height:26px;flex-shrink:0;margin-bottom:10px;}
   .wave span{
     width:3px;border-radius:2px;background:linear-gradient(180deg,var(--accent),var(--purple),var(--pink));
@@ -874,6 +877,7 @@ var __n=parseInt(__c[0].slice(1),16);__r.style.setProperty("--accent-dim","rgba(
         </div>
         <h2 class="heading">Hey there!</h2>
         <p class="status-line" id="statusLine">Check stock, expiry or sales — just speak!</p>
+        <p class="wake-line" id="wakeLineMobile"></p>
       </div>
 
       <div class="otp-banner" id="otpSection" style="display:none;">
@@ -1734,20 +1738,26 @@ function matchesWake(t) {
 }
 function wakeWanted() { return wakeOn() && isListening && !micOpen && !assistantPlaying(); }
 function renderWakeLine() {
-  const el = document.getElementById("wakeLine"), box = document.getElementById("wakeHeardBox");
+  ["wakeLine", "wakeLineMobile"].forEach(renderWakeLineInto);
+  const box = document.getElementById("wakeHeardBox");
   const fresh = wakeInfo.heard && Date.now() - wakeInfo.heardAt < 8000;
   const heard = fresh ? `heard: <i>“${esc(wakeInfo.heard)}”</i>` : "";
   if (box) box.innerHTML = wakeOn() ? (fresh ? `<i>“${esc(wakeInfo.heard)}”</i>` : "Say your wake phrase…") : "The wake word isn't running right now.";
+}
+function renderWakeLineInto(id) {
+  const el = document.getElementById(id);
   if (!el) return;
+  const fresh = wakeInfo.heard && Date.now() - wakeInfo.heardAt < 8000;
+  const heard = fresh ? `heard: <i>“${esc(wakeInfo.heard)}”</i>` : "";
   el.className = "wake-line";
   if (prefs.voice.mode !== "wake" || !isListening) { el.innerHTML = ""; return; }
-  if (!wakeSupported()) { el.className = "wake-line bad"; el.innerHTML = "This browser can't hear a wake word. Use Chrome or Edge, or tap the mic."; return; }
-  if (wakeFailed) { el.className = "wake-line bad"; el.innerHTML = `Wake word is off: ${esc(wakeInfo.reason || "the speech service stopped")}. <a id="wakeRetry">Try again</a>`; return; }
+  if (!wakeSupported()) { el.className = "wake-line bad"; el.innerHTML = "This browser/phone can't hear a wake word (iPhone Safari doesn't support it). Use Chrome on Android, or tap the mic."; return; }
+  if (wakeFailed) { el.className = "wake-line bad"; el.innerHTML = `Wake word is off: ${esc(wakeInfo.reason || "the speech service stopped")}. <a class="wakeRetry">Try again</a>`; return; }
   if (micOpen) { el.innerHTML = ""; return; }
   const err = wakeInfo.err && Date.now() - wakeInfo.errAt < 6000 ? ` <span style="color:var(--warning)">(${esc(wakeInfo.err)})</span>` : "";
   el.innerHTML = recogRunning ? `👂 Listening for “${esc(wakeLabel())}” ${heard}${err}` : `Starting the wake word…${err}`;
 }
-document.addEventListener("click", (e) => { if (e.target && e.target.id === "wakeRetry") { wakeFailed = false; recogFails = 0; recogNextTry = 0; wakeInfo.reason = ""; wakeInfo.err = ""; applyMicUI(); renderWakeLine(); } });
+document.addEventListener("click", (e) => { if (e.target && e.target.classList && e.target.classList.contains("wakeRetry")) { wakeFailed = false; recogFails = 0; recogNextTry = 0; wakeInfo.reason = ""; wakeInfo.err = ""; applyMicUI(); renderWakeLine(); } });
 function assistantPlaying() { return !!playbackContext && playbackContext.currentTime < nextStartTime - 0.05; }
 function wakeChime() {
   if (!prefs.notifications.sound) return;
