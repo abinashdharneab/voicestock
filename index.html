@@ -40,12 +40,6 @@
   }
   .loc-btn.done { border-style: solid; color: #43e29b; border-color: #43e29b; }
   .loc-note { font-size: 0.72rem; color: #7e97bd; min-height: 1.2em; margin-bottom: 10px; text-align: left; }
-  .loc-note.bad { color: #ff6b6b; }
-  textarea.addr {
-    width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #2a3a5c; background: #0b1627;
-    color: #eee; margin-bottom: 12px; font-size: 0.9rem; box-sizing: border-box; font-family: inherit;
-    resize: vertical; min-height: 58px; display: none;
-  }
   .error { color: #ff6b6b; font-size: 0.8rem; min-height: 1em; margin-top: 10px; }
   .toggle { margin-top: 14px; font-size: 0.8rem; color: #7e97bd; cursor: pointer; text-decoration: underline; }
 </style>
@@ -66,8 +60,7 @@
     <input type="password" id="pin" placeholder="4-digit PIN" maxlength="4" inputmode="numeric">
     <div id="locBox">
       <button type="button" class="loc-btn" id="locBtn" onclick="getLoc()">📍 Use my current location</button>
-      <div class="loc-note" id="locNote">Required. Stand at your shop or godown. Delivery partners use this to find you.</div>
-      <textarea class="addr" id="addr" maxlength="200" placeholder="Shop address (filled from your location, you can edit it)"></textarea>
+      <div class="loc-note" id="locNote">Optional. Lets the assistant find wholesalers near you.</div>
     </div>
     <button class="submit" onclick="submit_()">Login</button>
     <div class="error" id="err"></div>
@@ -79,62 +72,19 @@ let isSignup = false;
 let role = "retailer";
 
 let myLoc = null;
-let addrEdited = false, areaAuto = false;
-
-document.addEventListener("DOMContentLoaded", () => {
-  document.getElementById("addr").addEventListener("input", () => { addrEdited = true; });
-  document.getElementById("area").addEventListener("input", () => { areaAuto = false; });
-});
-
-// Turns the OpenStreetMap answer into a short address line and an area name.
-function parseAddress(d) {
-  const a = (d && d.address) || {};
-  const road = a.road || a.pedestrian || a.footway || a.path || "";
-  const local = a.neighbourhood || a.suburb || a.quarter || a.hamlet || a.city_district || "";
-  const city = a.city || a.town || a.village || a.municipality || a.county || "";
-  const parts = [a.house_number ? a.house_number + " " + road : road, local, city, a.postcode]
-    .map(x => String(x || "").trim()).filter(Boolean);
-  let line = parts.join(", ");
-  if (!line && d && d.display_name) line = String(d.display_name).split(",").slice(0, 4).join(",").trim();
-  return { address: line.slice(0, 200), area: local || city };
-}
-
-async function fillAddress(lat, lng) {
-  const note = document.getElementById("locNote"), addr = document.getElementById("addr");
-  addr.style.display = "block";
-  note.className = "loc-note";
-  note.innerText = "Location captured. Finding your address...";
-  try {
-    const ctl = new AbortController(); const t = setTimeout(() => ctl.abort(), 8000);
-    const r = await fetch("https://nominatim.openstreetmap.org/reverse?format=jsonv2&addressdetails=1&zoom=18&accept-language=en&lat="
-                          + lat + "&lon=" + lng, { signal: ctl.signal });
-    clearTimeout(t);
-    const info = parseAddress(await r.json());
-    if (!addrEdited && info.address) addr.value = info.address;
-    const areaEl = document.getElementById("area");
-    if (info.area && (!areaEl.value.trim() || areaAuto)) { areaEl.value = info.area; areaAuto = true; }
-    note.innerText = info.address ? "Address filled from your location. Check it and correct it if needed."
-                                  : "Location captured. Type your shop address below.";
-  } catch (e) {
-    note.innerText = "Location captured, but the address could not be found. Type your shop address below.";
-  }
-}
 
 function getLoc() {
   const note = document.getElementById("locNote"), btn = document.getElementById("locBtn");
-  if (!navigator.geolocation) {
-    note.className = "loc-note bad"; note.innerText = "This browser can't share location. Use Chrome or Safari on your phone."; return;
-  }
-  note.className = "loc-note"; note.innerText = "Getting your location...";
+  if (!navigator.geolocation) { note.innerText = "This browser can't share location."; return; }
+  note.innerText = "Getting your location...";
   navigator.geolocation.getCurrentPosition(p => {
     myLoc = { lat: p.coords.latitude, lng: p.coords.longitude };
     btn.classList.add("done"); btn.innerText = "📍 Location captured";
-    fillAddress(myLoc.lat, myLoc.lng);
+    note.innerText = "It will be saved when you log in.";
   }, e => {
     myLoc = null; btn.classList.remove("done"); btn.innerText = "📍 Use my current location";
-    note.className = "loc-note bad";
-    note.innerText = e.code === 1 ? "Location is blocked. Allow it in the browser's site settings (tap the lock icon next to the address), then tap the button again."
-                                  : "Couldn't get your location. Try again outdoors or near a window.";
+    note.innerText = e.code === 1 ? "Location is blocked. You can still log in, or allow it in the browser's site settings."
+                                  : "Couldn't get your location. You can still log in.";
   }, { enableHighAccuracy: true, timeout: 15000 });
 }
 
@@ -162,17 +112,6 @@ async function submit_() {
     errEl.innerText = "Enter a name and a 4-digit PIN.";
     return;
   }
-  const needsLoc = role === "retailer" || role === "wholesaler";
-  const address = document.getElementById("addr").value.trim().slice(0, 200);
-  if (needsLoc && !myLoc) {
-    errEl.innerText = "Tap \"Use my current location\" first. It is required.";
-    return;
-  }
-  if (needsLoc && !address) {
-    errEl.innerText = "Enter your shop address.";
-    document.getElementById("addr").focus();
-    return;
-  }
 
   const endpoint = isSignup ? "/signup" : "/login";
   try {
@@ -190,20 +129,13 @@ async function submit_() {
     localStorage.setItem("account_name", data.name);
     localStorage.setItem("role", data.role);
 
-    if (data.role === "retailer" || data.role === "wholesaler") {
-      let saved = false;
+    if (myLoc && (data.role === "retailer" || data.role === "wholesaler")) {
       try {
-        const lr = await fetch(`/location?role=${data.role}&account_id=${data.account_id}`, {
+        await fetch(`/location?role=${data.role}&account_id=${data.account_id}`, {
           method: "PUT", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ lat: myLoc.lat, lng: myLoc.lng, address })
+          body: JSON.stringify({ lat: myLoc.lat, lng: myLoc.lng })
         });
-        saved = lr.ok;
-      } catch (e) { saved = false; }
-      if (!saved) {
-        localStorage.removeItem("account_id"); localStorage.removeItem("account_name"); localStorage.removeItem("role");
-        errEl.innerText = "Couldn't save your location. Check your connection and tap Login again.";
-        return;
-      }
+      } catch (e) { /* login still works without a saved location */ }
     }
 
     if (data.role === "retailer") window.location.href = "voice.html";
