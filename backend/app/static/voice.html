@@ -1310,13 +1310,25 @@ function setStatus(state, text) {
   applyMicUI();
 }
 
+// The scrollbar belongs to the .panel wrapper (overflow-y:auto when open), so scroll that and the inner box.
+function keepBottom(el) {
+  if (!el) return;
+  const box = el.closest(".panel");
+  const go = () => {
+    if (box) box.scrollTop = box.scrollHeight;
+    el.scrollTop = el.scrollHeight;
+  };
+  go();
+  requestAnimationFrame(go);
+}
+
 function addBubble(role, text) {
   if (!hasTranscript) { transcriptEl.innerHTML = ""; hasTranscript = true; }
   const div = document.createElement("div");
   div.className = "bubble " + (role === "assistant" ? "assistant" : "user");
   div.innerText = text;
   transcriptEl.appendChild(div);
-  transcriptEl.scrollTop = transcriptEl.scrollHeight;
+  keepBottom(transcriptEl);
 
   const dTranscriptEl = document.getElementById("dTranscript");
   if (dTranscriptEl) {
@@ -1325,14 +1337,29 @@ function addBubble(role, text) {
     div2.className = "bubble " + (role === "assistant" ? "assistant" : "user");
     div2.innerText = text;
     dTranscriptEl.appendChild(div2);
-    dTranscriptEl.scrollTop = dTranscriptEl.scrollHeight;
+    keepBottom(dTranscriptEl);
   }
 }
 
 convoRow.onclick = () => {
   const isOpen = convoPanel.classList.toggle("open");
   convoRow.classList.toggle("open", isOpen);
+  if (isOpen) setTimeout(() => keepBottom(transcriptEl), 260);   // after the open animation
 };
+
+// Tapping anywhere outside the Conversation box closes it.
+document.addEventListener("click", (e) => {
+  const t = e.target;
+  if (convoPanel.classList.contains("open") && !convoRow.contains(t) && !convoPanel.contains(t)) {
+    convoPanel.classList.remove("open");
+    convoRow.classList.remove("open");
+  }
+  const dp = document.getElementById("dConvoPanel");
+  const dChip = document.getElementById("dChipConvo");
+  if (dp && dp.classList.contains("open") && !dp.contains(t) && !(dChip && dChip.contains(t))) {
+    dp.classList.remove("open");
+  }
+});
 
 /* ---------------- DESKTOP DASHBOARD WIRING ---------------- */
 const dashGreet = document.getElementById("dashGreet");
@@ -1387,7 +1414,8 @@ function goToView(view, opts) {
 document.getElementById("dMicBtn")?.addEventListener("click", () => toggleTalking());
 
 document.getElementById("dChipConvo")?.addEventListener("click", () => {
-  document.getElementById("dConvoPanel").classList.toggle("open");
+  const dp = document.getElementById("dConvoPanel");
+  if (dp.classList.toggle("open")) setTimeout(() => keepBottom(document.getElementById("dTranscript")), 260);
 });
 document.getElementById("dChipStock")?.addEventListener("click", () => goToView("stocks"));
 document.getElementById("dChipSold")?.addEventListener("click", () => goToView("history", { historyTab: "sold" }));
