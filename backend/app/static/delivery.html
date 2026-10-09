@@ -88,6 +88,14 @@ tr.row{cursor:pointer}tr.row:hover td,tr.sel td{background:#0e1f40}
 .pc a:hover{background:#12326d}
 .map{width:100%;height:190px;border:1px solid var(--line);border-radius:12px;margin-bottom:14px;background:var(--side)}
 @media(max-width:520px){.pty{grid-template-columns:1fr}}
+.route{display:grid;grid-template-columns:1fr auto 1fr;gap:10px;align-items:center;background:var(--side);border:1px solid var(--line);border-radius:12px;padding:12px;margin:0 0 12px}
+.route small{display:block;color:var(--mut);font-size:11px;font-weight:600;letter-spacing:.4px;text-transform:uppercase;margin-bottom:3px}
+.route b{display:block;overflow-wrap:anywhere}.route span{display:block;color:var(--mut);font-size:12px;line-height:1.4;overflow-wrap:anywhere}
+.route .arr{text-align:center;color:#8ab6ff;font-size:22px;line-height:1}.route .arr small{font-size:11px;text-transform:none;letter-spacing:0;margin:4px 0 0;white-space:nowrap}
+.rtlink{display:block;text-align:center;margin:0 0 14px;padding:11px;border-radius:10px;background:#2f6bff;color:#fff;font-weight:600;font-size:14px;text-decoration:none}
+.rtwarn{background:#3a2a0a;border:1px solid #7a5a12;color:#f5c451;border-radius:10px;padding:10px 12px;font-size:13px;margin:0 0 12px;line-height:1.5}
+td.rt{font-size:12px;color:var(--mut);min-width:170px;line-height:1.5}td.rt b{color:var(--txt);font-weight:600}
+@media(max-width:520px){.route{grid-template-columns:1fr}.route .arr{transform:rotate(90deg);margin:2px 0}}
 #toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%) translateY(20px);background:#12326d;border:1px solid var(--blue);padding:12px 20px;border-radius:12px;opacity:0;pointer-events:none;transition:.25s;z-index:20}
 #toast.show{opacity:1;transform:translateX(-50%)}#toast.err{background:#4a1220;border-color:var(--red)}
 :focus-visible{outline:2px solid #7fb2ff;outline-offset:2px}
@@ -131,7 +139,7 @@ tr.row{cursor:pointer}tr.row:hover td,tr.sel td{background:#0e1f40}
         </div>
       </div>
       <div class="tw"><table>
-        <thead><tr><th>#</th><th>Item</th><th>Qty</th><th>Status</th><th style="text-align:right">Action</th></tr></thead>
+        <thead><tr><th>#</th><th>Item</th><th>Route</th><th>Qty</th><th>Status</th><th style="text-align:right">Action</th></tr></thead>
         <tbody id="rows"></tbody>
       </table></div>
     </section>
@@ -185,13 +193,44 @@ function render(){
     <tr class="row ${j.key === selected ? "sel" : ""}" data-key="${j.key}">
       <td>#ORD-${j.id}</td>
       <td><div class="item">${tile(j.product_name)}<div>${esc(j.product_name)}</div></div></td>
+      <td class="rt">${routeCell(j)}</td>
       <td>${j.quantity}</td>
       <td><span class="badge b-${j.state === "avail" ? "avail" : j.state}">${LABEL[j.state]}</span></td>
       <td style="text-align:right">${j.state === "avail"
         ? `<button class="btn pri" data-accept="${j.id}">Accept</button>`
         : `<button class="btn" data-view="${j.key}">View</button>`}</td>
-    </tr>`).join("") || `<tr><td colspan="5" class="empty">${list.length ? "No deliveries match this filter." : "No jobs right now. New confirmed orders appear here automatically."}</td></tr>`;
+    </tr>`).join("") || `<tr><td colspan="6" class="empty">${list.length ? "No deliveries match this filter." : "No jobs right now. New confirmed orders appear here automatically."}</td></tr>`;
   renderDetail();
+}
+
+const hasPt = p => p && p.lat != null && p.lng != null;
+function hav(a, b){
+  const R = 6371.0088, rad = x => x * Math.PI / 180;
+  const dp = rad(b.lat - a.lat), dl = rad(b.lng - a.lng);
+  const h = Math.sin(dp/2)**2 + Math.cos(rad(a.lat)) * Math.cos(rad(b.lat)) * Math.sin(dl/2)**2;
+  return 2 * R * Math.asin(Math.sqrt(h));
+}
+function routeKm(j){ return hasPt(j.wholesaler) && hasPt(j.retailer) ? hav(j.wholesaler, j.retailer) : null; }
+const placeOf = p => p ? [p.address, p.area].filter(Boolean).join(", ") : "";
+function routeCell(j){
+  const w = j.wholesaler || {}, r = j.retailer || {}, km = routeKm(j);
+  return `<b>${esc(w.name || "Wholesaler")}</b>${w.area ? ", " + esc(w.area) : ""}<br>➜ <b>${esc(r.name || "Retailer")}</b>${r.area ? ", " + esc(r.area) : ""}`
+    + (km != null ? `<br>${km.toFixed(1)} km` : "");
+}
+function ptParam(p){ return hasPt(p) ? `${p.lat},${p.lng}` : encodeURIComponent(placeOf(p) || (p && p.name) || ""); }
+function routeBanner(j){
+  const w = j.wholesaler || {}, r = j.retailer || {}, km = routeKm(j);
+  const missing = [];
+  if (!hasPt(w)) missing.push("pickup (wholesaler)");
+  if (!hasPt(r)) missing.push("drop (retailer)");
+  const warn = missing.length ? `<div class="rtwarn">The exact map point for the ${missing.join(" and ")} is not saved. Call them for directions.</div>` : "";
+  const can = (hasPt(w) || placeOf(w)) && (hasPt(r) || placeOf(r));
+  const link = can ? `<a class="rtlink" target="_blank" rel="noopener" href="https://www.google.com/maps/dir/?api=1&waypoints=${ptParam(w)}&destination=${ptParam(r)}&travelmode=driving">Start full route: my location ➜ pickup ➜ drop</a>` : "";
+  return `<div class="route">
+      <div><small>From · Pickup</small><b>${esc(w.name || "Not available")}</b><span>${esc(placeOf(w) || "Address not added")}</span></div>
+      <div class="arr">➜<small>${km != null ? km.toFixed(1) + " km" : ""}</small></div>
+      <div><small>To · Deliver</small><b>${esc(r.name || "Not available")}</b><span>${esc(placeOf(r) || "Address not added")}</span></div>
+    </div>${warn}${link}`;
 }
 
 function party(title, p){
@@ -248,6 +287,7 @@ function renderDetail(){
       <p>${esc(j.product_name)}</p></div>
       <div class="r"><b>Qty: ${j.quantity}</b></div></div>
     <div class="tl">${tl}</div>
+    ${routeBanner(j)}
     ${mapFor(j)}
     <div class="pty">${party("Pickup from (wholesaler)", j.wholesaler)}${party("Deliver to (retailer)", j.retailer)}</div>
     ${action}`;
