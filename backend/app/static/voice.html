@@ -1310,25 +1310,13 @@ function setStatus(state, text) {
   applyMicUI();
 }
 
-// The scrollbar belongs to the .panel wrapper (overflow-y:auto when open), so scroll that and the inner box.
-function keepBottom(el) {
-  if (!el) return;
-  const box = el.closest(".panel");
-  const go = () => {
-    if (box) box.scrollTop = box.scrollHeight;
-    el.scrollTop = el.scrollHeight;
-  };
-  go();
-  requestAnimationFrame(go);
-}
-
 function addBubble(role, text) {
   if (!hasTranscript) { transcriptEl.innerHTML = ""; hasTranscript = true; }
   const div = document.createElement("div");
   div.className = "bubble " + (role === "assistant" ? "assistant" : "user");
   div.innerText = text;
   transcriptEl.appendChild(div);
-  keepBottom(transcriptEl);
+  transcriptEl.scrollTop = transcriptEl.scrollHeight;
 
   const dTranscriptEl = document.getElementById("dTranscript");
   if (dTranscriptEl) {
@@ -1337,29 +1325,14 @@ function addBubble(role, text) {
     div2.className = "bubble " + (role === "assistant" ? "assistant" : "user");
     div2.innerText = text;
     dTranscriptEl.appendChild(div2);
-    keepBottom(dTranscriptEl);
+    dTranscriptEl.scrollTop = dTranscriptEl.scrollHeight;
   }
 }
 
 convoRow.onclick = () => {
   const isOpen = convoPanel.classList.toggle("open");
   convoRow.classList.toggle("open", isOpen);
-  if (isOpen) setTimeout(() => keepBottom(transcriptEl), 260);   // after the open animation
 };
-
-// Tapping anywhere outside the Conversation box closes it.
-document.addEventListener("click", (e) => {
-  const t = e.target;
-  if (convoPanel.classList.contains("open") && !convoRow.contains(t) && !convoPanel.contains(t)) {
-    convoPanel.classList.remove("open");
-    convoRow.classList.remove("open");
-  }
-  const dp = document.getElementById("dConvoPanel");
-  const dChip = document.getElementById("dChipConvo");
-  if (dp && dp.classList.contains("open") && !dp.contains(t) && !(dChip && dChip.contains(t))) {
-    dp.classList.remove("open");
-  }
-});
 
 /* ---------------- DESKTOP DASHBOARD WIRING ---------------- */
 const dashGreet = document.getElementById("dashGreet");
@@ -1414,8 +1387,7 @@ function goToView(view, opts) {
 document.getElementById("dMicBtn")?.addEventListener("click", () => toggleTalking());
 
 document.getElementById("dChipConvo")?.addEventListener("click", () => {
-  const dp = document.getElementById("dConvoPanel");
-  if (dp.classList.toggle("open")) setTimeout(() => keepBottom(document.getElementById("dTranscript")), 260);
+  document.getElementById("dConvoPanel").classList.toggle("open");
 });
 document.getElementById("dChipStock")?.addEventListener("click", () => goToView("stocks"));
 document.getElementById("dChipSold")?.addEventListener("click", () => goToView("history", { historyTab: "sold" }));
@@ -2000,6 +1972,15 @@ function qtyOf(p) {
 }
 function isLow(p) { return qtyOf(p) < (p.min_stock_level ?? 0); }
 
+// Same approximation the voice assistant uses (business.py _cost_of): average cost_price
+// across batches that have one saved. Batches without a cost_price are ignored, not treated as 0.
+function avgCost(p) {
+  const costs = (p.batches || []).map(b => b.cost_price).filter(c => c != null && c > 0);
+  if (!costs.length) return null;
+  return +(costs.reduce((a, c) => a + c, 0) / costs.length).toFixed(2);
+}
+function money(n) { return n == null ? "—" : `₹${n % 1 === 0 ? n : n.toFixed(2)}`; }
+
 async function loadStocks() {
   const statusEl = document.getElementById("stockStatus");
   try {
@@ -2064,6 +2045,11 @@ function openStockDetail(id) {
   if (!p) return;
   const qty = qtyOf(p);
   const low = isLow(p);
+  const price = p.price_per_unit ?? null;
+  const cost = avgCost(p);
+  const profit = (price != null && cost != null) ? +(price - cost).toFixed(2) : null;
+  const marginPct = (profit != null && price) ? +((profit / price) * 100).toFixed(1) : null;
+  const potential = (profit != null) ? +(profit * qty).toFixed(2) : null;
   const thumb = p.image_url
     ? `<img class="dh-thumb" src="${p.image_url}" alt="${p.name}">`
     : `<div class="dh-thumb ph">${initials(p.name)}</div>`;
@@ -2097,6 +2083,32 @@ function openStockDetail(id) {
           <div class="val">${p.unit || '—'}</div>
         </div>
       </div>
+    </div>
+    <div class="detail-section">
+      <h4>Pricing & Profit</h4>
+      <div class="detail-grid">
+        <div class="detail-cell">
+          <div class="lbl">Selling Price</div>
+          <div class="val">${price != null ? money(price) : 'Not set'}</div>
+        </div>
+        <div class="detail-cell">
+          <div class="lbl">Cost Price</div>
+          <div class="val">${cost != null ? money(cost) : 'Not set'}</div>
+        </div>
+        <div class="detail-cell">
+          <div class="lbl">Profit / Unit</div>
+          <div class="val ${profit != null && profit < 0 ? 'danger' : ''}">${profit != null ? money(profit) : '—'}</div>
+        </div>
+        <div class="detail-cell">
+          <div class="lbl">Margin</div>
+          <div class="val ${marginPct != null && marginPct < 15 ? 'danger' : marginPct != null ? 'success' : ''}">${marginPct != null ? marginPct + '%' : '—'}</div>
+        </div>
+        <div class="detail-cell" style="grid-column:1/-1;">
+          <div class="lbl">Potential Profit (if all ${qty} ${p.unit || ''} sell)</div>
+          <div class="val">${potential != null ? money(potential) : '—'}</div>
+        </div>
+      </div>
+      ${(price == null || cost == null) ? `<div class="upload-status" style="margin-top:8px;">${price == null ? 'No selling price yet — say &quot;set price of ' + p.name + '&quot; to add one. ' : ''}${cost == null ? 'No cost price yet — it is saved when you add stock and mention what it cost.' : ''}</div>` : ''}
     </div>
     <div class="detail-section">
       <h4>Photo</h4>
