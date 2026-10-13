@@ -1611,7 +1611,8 @@ setInterval(loadOrdersForNotifs, 5000);
    It closes by itself after you stop talking. If the assistant asks a question it listens once more for a reply. */
 var micOpen = false, followUpOpen = false, followUpPending = false, openOnConnect = false;
 var openedAt = 0, lastSpeechAt = 0, heardSpeech = false, lastAudioAt = 0, assistantTail = "", noiseFloor = 0.004;
-var GATE_SILENCE_MS = 1800, GATE_NOSPEECH_MS = 8000;
+var GATE_SILENCE_MS = 1800, GATE_NOSPEECH_MS = 10000;   // up to 10s to start replying before the mic closes again
+var FOLLOW_CHAIN_MAX = 40;                              // stay in the conversation; don't force the wake word every 1-2 turns
 function tapMode() { return prefs.voice.mode !== "always"; }
 var preroll = [], PREROLL_CHUNKS = 5, wakeFailed = false, followChain = 0;
 function wakeSupported() { return !!(window.SpeechRecognition || window.webkitSpeechRecognition); }
@@ -1661,7 +1662,7 @@ setInterval(() => {                    // after a question, listen once for the 
   if (!(playbackContext.currentTime >= nextStartTime - 0.05 && Date.now() - lastAudioAt > 900)) return;
   followUpPending = false;
   const asked = /[?？]\s*$/.test(assistantTail.trim());
-  if (asked || (wakeOn() && followChain < 3)) { followChain++; openTalk(true); }
+  if (asked || (wakeOn() && followChain < FOLLOW_CHAIN_MAX)) { followChain++; openTalk(true); }
 }, 250);
 function startTalking() {
   if (!prefs.voice.enabled) { flash("Voice assistant is off", "Turn it on from Profile → Voice Assistant.", "bad"); return; }
@@ -1722,6 +1723,7 @@ function tokenOk(spoken, want) {
   if (spoken === want) return true;
   if (want === "hey") return HEY_WORDS.includes(spoken);
   if (ALIASES[want] && ALIASES[want].includes(spoken)) return true;
+  if (want === "stock" && spoken.length >= 2 && spoken[0] === "s") return true;   // "hey s..." is close enough
   return want.length >= 5 && spoken.length >= 4 && editDist(fold(spoken), fold(want)) <= 1;     // forgiving for longer custom words
 }
 function matchesWake(t) {
@@ -1771,13 +1773,34 @@ function wakeChime() {
     o.connect(g); g.connect(_actx.destination); o.start(t); o.stop(t + 0.18);
   } catch (e) {}
 }
+function wakeGreetText() {
+  const name = (localStorage.getItem("account_name") || "").trim();
+  const en = (prefs.voice && prefs.voice.language) === "en";
+  return en ? (name ? `Yes ${name}, go ahead` : "Yes, go ahead") : (name ? `हाँ ${name}, बोलिए` : "हाँ, बोलिए");
+}
+function wakeGreet(done) {
+  try {
+    if (!("speechSynthesis" in window) || !prefs.notifications.sound) { done(); return; }
+    const u = new SpeechSynthesisUtterance(wakeGreetText());
+    u.lang = (prefs.voice && prefs.voice.language) === "en" ? "en-IN" : "hi-IN";
+    u.rate = 1.05; u.volume = 0.9;
+    let fired = false;
+    const finish = () => { if (fired) return; fired = true; done(); };
+    u.onend = finish; u.onerror = finish;
+    setTimeout(finish, 2500);                 // safety net if the browser never fires onend
+    speechSynthesis.speak(u);
+  } catch (e) { done(); }
+}
 function wakeTriggered() {
   if (micOpen || !isListening || assistantPlaying()) return;
   stopWake();
-  if (!openTalk(false)) return;
-  if (ws && ws.readyState === WebSocket.OPEN) preroll.forEach(b => ws.send(b));
-  preroll = [];
   wakeChime();
+  wakeGreet(() => {
+    if (micOpen || !isListening) return;      // the owner may have tapped the mic themselves meanwhile
+    if (!openTalk(false)) return;
+    if (ws && ws.readyState === WebSocket.OPEN) preroll.forEach(b => ws.send(b));
+    preroll = [];
+  });
 }
 function stopWake() {
   if (recog) { try { recog.abort(); } catch (e) {} }
