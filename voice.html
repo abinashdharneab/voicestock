@@ -1793,7 +1793,12 @@ function wakeTriggered() {
   stopWake();
   wakeListenChime();
   if (!openTalk(false)) return;
-  if (ws && ws.readyState === WebSocket.OPEN) preroll.forEach(b => ws.send(b));
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    // Ask the assistant itself to say a short greeting, in its own voice - then the real
+    // audio (anything said right after the wake phrase) follows right behind it.
+    try { ws.send(JSON.stringify({ type: "wake_greet", name: (localStorage.getItem("account_name") || "").trim() })); } catch (e) {}
+    preroll.forEach(b => ws.send(b));
+  }
   preroll = [];
 }
 function stopWake() {
