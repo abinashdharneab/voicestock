@@ -1772,34 +1772,28 @@ function wakeChime() {
     o.connect(g); g.connect(_actx.destination); o.start(t); o.stop(t + 0.18);
   } catch (e) {}
 }
-function wakeGreetText() {
-  const name = (localStorage.getItem("account_name") || "").trim();
-  const en = (prefs.voice && prefs.voice.language) === "en";
-  return en ? (name ? `Yes ${name}, go ahead` : "Yes, go ahead") : (name ? `हाँ ${name}, बोलिए` : "हाँ, बोलिए");
-}
-function wakeGreet(done) {
+function wakeListenChime() {       // a clear two-tone cue for "I heard you, go ahead" - same on every phone
+  if (!prefs.notifications.sound) return;
   try {
-    if (!("speechSynthesis" in window) || !prefs.notifications.sound) { done(); return; }
-    const u = new SpeechSynthesisUtterance(wakeGreetText());
-    u.lang = (prefs.voice && prefs.voice.language) === "en" ? "en-IN" : "hi-IN";
-    u.rate = 1.05; u.volume = 0.9;
-    let fired = false;
-    const finish = () => { if (fired) return; fired = true; done(); };
-    u.onend = finish; u.onerror = finish;
-    setTimeout(finish, 2500);                 // safety net if the browser never fires onend
-    speechSynthesis.speak(u);
-  } catch (e) { done(); }
+    _actx = _actx || new (window.AudioContext || window.webkitAudioContext)();
+    if (_actx.state === "suspended") _actx.resume();
+    const t = _actx.currentTime;
+    [[880, 0], [1320, 0.1]].forEach(([freq, at]) => {
+      const o = _actx.createOscillator(), g = _actx.createGain();
+      o.type = "sine"; o.frequency.value = freq;
+      g.gain.setValueAtTime(0.0001, t + at); g.gain.exponentialRampToValueAtTime(0.14, t + at + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + at + 0.16);
+      o.connect(g); g.connect(_actx.destination); o.start(t + at); o.stop(t + at + 0.18);
+    });
+  } catch (e) {}
 }
 function wakeTriggered() {
   if (micOpen || !isListening || assistantPlaying()) return;
   stopWake();
-  wakeChime();
-  wakeGreet(() => {
-    if (micOpen || !isListening) return;      // the owner may have tapped the mic themselves meanwhile
-    if (!openTalk(false)) return;
-    if (ws && ws.readyState === WebSocket.OPEN) preroll.forEach(b => ws.send(b));
-    preroll = [];
-  });
+  wakeListenChime();
+  if (!openTalk(false)) return;
+  if (ws && ws.readyState === WebSocket.OPEN) preroll.forEach(b => ws.send(b));
+  preroll = [];
 }
 function stopWake() {
   if (recog) { try { recog.abort(); } catch (e) {} }
