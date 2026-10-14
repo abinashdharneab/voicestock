@@ -62,8 +62,8 @@
     </div>
 
     <input type="text" id="accName" placeholder="Name">
-    <input type="text" id="area" placeholder="Area / City (e.g. Guwahati)">
-    <input type="password" id="pin" placeholder="4-digit PIN" maxlength="4" inputmode="numeric">
+    <input type="hidden" id="area">
+    <input type="password" id="pin" placeholder="Password (8+ digits)" maxlength="20" inputmode="numeric">
     <div id="locBox">
       <button type="button" class="loc-btn" id="locBtn" onclick="getLoc()">📍 Use my current location</button>
       <div class="loc-note" id="locNote">Required. Stand at your shop or godown. Delivery partners use this to find you.</div>
@@ -158,8 +158,8 @@ async function submit_() {
   const errEl = document.getElementById("err");
   errEl.innerText = "";
 
-  if (!name || pin.length !== 4) {
-    errEl.innerText = "Enter a name and a 4-digit PIN.";
+  if (!name || pin.length < 8 || !/^\d+$/.test(pin)) {
+    errEl.innerText = "Enter a name and a password of at least 8 digits.";
     return;
   }
   const needsLoc = role === "retailer" || role === "wholesaler";
