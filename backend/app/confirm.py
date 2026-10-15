@@ -120,6 +120,26 @@ def plan_set_price(db: Session, shop_id: int, product_name: str, new_price: floa
     return _new(db, shop_id, "set_price", {"product_name": product.name, "new_price": new_price}, summary)
 
 
+def plan_set_cost_price(db: Session, shop_id: int, product_name: str, cost_price: float):
+    if cost_price is None or float(cost_price) <= 0:
+        return {"success": False, "message": "Give a cost price more than 0."}
+    cost_price = round(float(cost_price), 2)
+    product, match_type, suggestions = tools.find_product(db, product_name, shop_id)
+    if not product:
+        return {"success": False, "message": f"No product matching '{product_name}'.", "suggestions": suggestions}
+    if match_type in ("fuzzy", "ambiguous"):
+        return {"success": False, "needs_clarification": True, "suggestions": suggestions,
+                "message": f"'{product_name}' looks like: {', '.join(suggestions)}. Ask again with the exact name."}
+    batches = list(product.batches)
+    if not batches:
+        return {"success": False, "message": f"No stock recorded yet for {product.name} \u2014 add stock first, "
+                                              f"then I can save its cost price."}
+    existing = sum(1 for b in batches if b.cost_price)
+    summary = f"Set {product.name}'s cost price to \u20b9{cost_price:g} on all {len(batches)} batch(es)" + (
+        f" (overwriting {existing} that already had a cost price saved)" if existing else "") + "."
+    return _new(db, shop_id, "set_cost_price", {"product_name": product.name, "cost_price": cost_price}, summary)
+
+
 def plan_order(db: Session, shop_id: int, product_name: str, quantity: int, wholesaler_name: str = None):
     if quantity is None or int(quantity) < 1:
         return {"success": False, "message": "Quantity must be at least 1."}
@@ -190,6 +210,24 @@ def _exec_set_price(db, shop_id, p):
             "message": f"{product.name}'s price is now \u20b9{p['new_price']:g}."}
 
 
+def _exec_bulk_order(db, shop_id, p):
+    from . import bulk_order
+    return bulk_order.execute(db, shop_id, p)
+
+
+def _exec_set_cost_price(db, shop_id, p):
+    product, match_type, _ = tools.find_product(db, p["product_name"], shop_id)
+    if not product:
+        return {"success": False, "message": f"{p['product_name']} no longer exists."}
+    count = 0
+    for b in product.batches:
+        b.cost_price = p["cost_price"]
+        count += 1
+    db.commit()
+    return {"success": True, "product": product.name, "cost_price": p["cost_price"], "batches_updated": count,
+            "message": f"{product.name}'s cost price is now \u20b9{p['cost_price']:g} ({count} batch(es) updated)."}
+
+
 def _exec_order(db, shop_id, p):
     item = db.query(models.WholesalerItem).filter(
         models.WholesalerItem.wholesaler_id == p["wholesaler_id"],
@@ -215,7 +253,8 @@ def _exec_order(db, shop_id, p):
 
 
 EXECUTORS = {"sale": _exec_sale, "delete": _exec_delete, "rename": _exec_rename, "order": _exec_order,
-             "set_price": _exec_set_price}
+             "set_price": _exec_set_price, "set_cost_price": _exec_set_cost_price,
+             "bulk_order": _exec_bulk_order}
 
 
 def confirm_action(db: Session, shop_id: int, action_id: str):
