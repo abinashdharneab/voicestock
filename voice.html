@@ -116,6 +116,27 @@ var __n=parseInt(__c[0].slice(1),16);__r.style.setProperty("--accent-dim","rgba(
       min-height:100vh;overflow-x:hidden;
     }
     #stocksView,#historyView,#profileView{max-width:1100px;}
+  .stock-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:var(--sp-3);margin-bottom:var(--sp-4);}
+  @media(max-width:640px){.stock-stats{grid-template-columns:repeat(2,1fr);}}
+  .stat-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:var(--sp-3) var(--sp-4);display:flex;align-items:center;gap:var(--sp-3);}
+  .stat-ic{width:34px;height:34px;border-radius:var(--r-sm);display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+  .stat-ic svg{width:17px;height:17px;}
+  .stat-card .lbl{font-size:var(--fs-2xs);color:var(--text-faint);}
+  .stat-card .val{font-size:var(--fs-lg);font-weight:700;color:var(--text);}
+  .stock-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:var(--sp-3);}
+  .stock-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:var(--sp-4);cursor:pointer;transition:border-color .15s;}
+  .stock-card:active{border-color:var(--border-strong);}
+  .sc-top{display:flex;align-items:center;gap:var(--sp-3);margin-bottom:var(--sp-3);}
+  .sc-avatar{width:44px;height:44px;border-radius:var(--r-md);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:var(--fs-md);color:#fff;flex-shrink:0;overflow:hidden;}
+  .sc-avatar img{width:100%;height:100%;object-fit:cover;}
+  .sc-name{font-size:var(--fs-base);font-weight:600;color:var(--text);}
+  .sc-qty{font-size:var(--fs-xl);font-weight:700;color:var(--text);line-height:1.2;}
+  .sc-unit{font-size:var(--fs-2xs);color:var(--text-faint);font-weight:500;}
+  .sc-badge-row{display:flex;justify-content:flex-end;margin:-28px 0 var(--sp-2);}
+  .sc-bar-track{height:5px;border-radius:3px;background:var(--surface-3);overflow:hidden;margin-bottom:var(--sp-2);}
+  .sc-bar-fill{height:100%;border-radius:3px;}
+  .sc-bottom{display:flex;justify-content:space-between;font-size:var(--fs-2xs);color:var(--text-faint);}
+  .empty-stock{grid-column:1/-1;}
     .home-desktop{max-width:1640px;}
   }
 
@@ -1036,7 +1057,8 @@ var __n=parseInt(__c[0].slice(1),16);__r.style.setProperty("--accent-dim","rgba(
       </button>
     </div>
     <div class="stock-status" id="stockStatus" style="font-size:var(--fs-2xs);color:var(--text-faint);min-height:1em;margin-bottom:6px;"></div>
-    <div id="stockList"></div>
+    <div class="stock-stats" id="stockStats"></div>
+    <div class="stock-grid" id="stockList"></div>
   </div>
 
   <!-- ---------------- HISTORY VIEW ---------------- -->
@@ -2044,7 +2066,40 @@ async function loadStocks() {
   }
 }
 
+const CARD_COLORS = ["#4fa8ff", "#9b6bff", "#34d399", "#f4b740", "#ff5fae", "#2e8aef"];
+function colorFor(p) {
+  let h = 0;
+  for (const ch of String(p.id ?? p.name)) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  return CARD_COLORS[h % CARD_COLORS.length];
+}
+function stockPct(p, qty) {
+  const target = Math.max((p.min_stock_level || 0) * 2, 1);
+  return Math.max(0, Math.min(100, Math.round((qty / target) * 100)));
+}
+
+function renderStockStats() {
+  const stats = document.getElementById("stockStats");
+  const totalUnits = allProducts.reduce((a, p) => a + qtyOf(p), 0);
+  const healthy = allProducts.filter(p => !isLow(p)).length;
+  const low = allProducts.filter(isLow).length;
+  const row = [
+    ["accent", "M3 7l7-4 7 4v6l-7 4-7-4z", "Total SKUs", allProducts.length],
+    ["purple", "M4 4h12v12H4zM4 9h12M9 4v12", "Total Units", totalUnits],
+    ["success", "M4 10l4 4 8-8", "Healthy", healthy],
+    ["danger", "M10 3v8M10 14v3", "Low Stock", low],
+  ];
+  stats.innerHTML = row.map(([cls, path, lbl, val]) => `
+    <div class="stat-card">
+      <div class="stat-ic" style="background:var(--${cls}-dim,var(--surface-3));color:var(--${cls});">
+        <svg class="ic" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><path d="${path}"/></svg>
+      </div>
+      <div><div class="lbl">${lbl}</div><div class="val">${val}</div></div>
+    </div>
+  `).join("");
+}
+
 function renderStocks() {
+  renderStockStats();
   const list = document.getElementById("stockList");
   let products = allProducts;
   if (lowOnly) products = products.filter(isLow);
@@ -2058,26 +2113,32 @@ function renderStocks() {
   list.innerHTML = products.map(p => {
     const qty = qtyOf(p);
     const low = isLow(p);
-    const thumb = p.image_url
-      ? `<img class="s-thumb" src="${(window.API_BASE||"")+p.image_url}" alt="${p.name}">`
-      : `<div class="s-thumb ph">${initials(p.name)}</div>`;
+    const pct = stockPct(p, qty);
+    const color = colorFor(p);
+    const avatar = p.image_url
+      ? `<img src="${(window.API_BASE||"")+p.image_url}" alt="${p.name}">`
+      : initials(p.name);
     return `
-      <div class="s-row" data-id="${p.id}">
-        ${thumb}
-        <div class="s-info">
-          <div class="s-name">${p.name}</div>
-          <div class="s-meta">${qty} ${p.unit || ''}${p.min_stock_level != null ? ` · min ${p.min_stock_level}` : ''}</div>
+      <div class="stock-card" data-id="${p.id}">
+        <div class="sc-top">
+          <div class="sc-avatar" style="background:${p.image_url ? 'transparent' : color};">${avatar}</div>
+          <div style="flex:1;min-width:0;">
+            <div class="sc-name">${p.name}</div>
+            <div class="sc-qty">${qty}<span class="sc-unit"> ${p.unit || ''}</span></div>
+          </div>
         </div>
-        <div class="s-right">
-          <span class="pill ${low ? 'danger' : 'success'}">${low ? 'Low' : 'Healthy'}</span>
-          <svg class="ic" viewBox="0 0 20 20" style="color:var(--text-faint);"><path d="M7 4l6 6-6 6"/></svg>
+        <div class="sc-badge-row"><span class="pill ${low ? 'danger' : 'success'}">${low ? 'Low Stock' : 'Healthy'}</span></div>
+        <div class="sc-bar-track"><div class="sc-bar-fill" style="width:${pct}%;background:${low ? 'var(--danger)' : color};"></div></div>
+        <div class="sc-bottom">
+          <span>${p.unit || 'pkts'}${p.min_stock_level != null ? ` · min ${p.min_stock_level}` : ''}</span>
+          <span>${pct}%</span>
         </div>
       </div>
     `;
   }).join("");
 
-  list.querySelectorAll(".s-row").forEach(row => {
-    row.addEventListener("click", () => openStockDetail(parseInt(row.dataset.id)));
+  list.querySelectorAll(".stock-card").forEach(card => {
+    card.addEventListener("click", () => openStockDetail(parseInt(card.dataset.id)));
   });
 }
 

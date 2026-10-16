@@ -46,6 +46,12 @@
     color: #eee; margin-bottom: 12px; font-size: 0.9rem; box-sizing: border-box; font-family: inherit;
     resize: vertical; min-height: 58px; display: none;
   }
+  select.sel {
+    width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #2a3a5c;
+    background: #0b1627; color: #eee; margin-bottom: 12px; font-size: 1rem; box-sizing: border-box;
+  }
+  .signup-only { display: none; }
+  .field-note { font-size: 0.72rem; color: #7e97bd; margin: -6px 0 10px; text-align: left; }
   .error { color: #ff6b6b; font-size: 0.8rem; min-height: 1em; margin-top: 10px; }
   .toggle { margin-top: 14px; font-size: 0.8rem; color: #7e97bd; cursor: pointer; text-decoration: underline; }
 </style>
@@ -64,6 +70,16 @@
     <input type="text" id="accName" placeholder="Name">
     <input type="hidden" id="area">
     <input type="password" id="pin" placeholder="Password (8+ digits)" maxlength="20" inputmode="numeric">
+    <div class="signup-only" id="signupExtra">
+      <input type="email" id="email" placeholder="Email (optional)">
+      <input type="tel" id="phone" placeholder="Phone number (optional)" inputmode="tel">
+      <select class="sel" id="lang">
+        <option value="auto">Voice language: Hindi + English (auto)</option>
+        <option value="hi">Voice language: Hindi / Hinglish</option>
+        <option value="en">Voice language: English</option>
+      </select>
+      <div class="field-note">The assistant will always reply in this language. You can change it later from Profile.</div>
+    </div>
     <div id="locBox">
       <button type="button" class="loc-btn" id="locBtn" onclick="getLoc()">📍 Use my current location</button>
       <div class="loc-note" id="locNote">Required. Stand at your shop or godown. Delivery partners use this to find you.</div>
@@ -142,6 +158,11 @@ function selectRole(r) {
   role = r;
   document.getElementById("locBox").style.display = (r === "delivery") ? "none" : "block";
   document.querySelectorAll(".role-btn").forEach(b => b.classList.toggle("active", b.dataset.role === r));
+  syncSignupExtra();
+}
+
+function syncSignupExtra() {
+  document.getElementById("signupExtra").style.display = (isSignup && role !== "delivery") ? "block" : "none";
 }
 
 function toggleMode() {
@@ -149,6 +170,7 @@ function toggleMode() {
   document.getElementById("mode-label").innerText = isSignup ? "Create a new account" : "Login to your account";
   document.getElementById("toggle").innerText = isSignup ? "Already have an account? Login" : "New here? Create an account";
   document.querySelector(".submit").innerText = isSignup ? "Create Account" : "Login";
+  syncSignupExtra();
 }
 
 async function submit_() {
@@ -163,6 +185,14 @@ async function submit_() {
     return;
   }
   const needsLoc = role === "retailer" || role === "wholesaler";
+  const wantsProfile = isSignup && needsLoc;
+  const email = document.getElementById("email").value.trim();
+  const phone = document.getElementById("phone").value.trim();
+  const lang = document.getElementById("lang").value;
+  if (wantsProfile && !lang) {
+    errEl.innerText = "Choose a voice language.";
+    return;
+  }
   const address = document.getElementById("addr").value.trim().slice(0, 200);
   if (needsLoc && !myLoc) {
     errEl.innerText = "Tap \"Use my current location\" first. It is required.";
@@ -204,6 +234,21 @@ async function submit_() {
         errEl.innerText = "Couldn't save your location. Check your connection and tap Login again.";
         return;
       }
+    }
+
+    if (wantsProfile) {
+      try {
+        if (email || phone) {
+          await fetch(`/profile?account_id=${data.account_id}`, {
+            method: "PUT", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ email: email || null, phone: phone || null })
+          });
+        }
+        await fetch(`/profile/settings?account_id=${data.account_id}`, {
+          method: "PUT", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ settings: { voice: { language: lang } } })
+        });
+      } catch (e) { /* account is already created; these can be set later from Profile */ }
     }
 
     if (data.role === "retailer") window.location.href = "voice.html";
