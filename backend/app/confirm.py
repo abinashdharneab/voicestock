@@ -140,6 +140,21 @@ def plan_set_cost_price(db: Session, shop_id: int, product_name: str, cost_price
     return _new(db, shop_id, "set_cost_price", {"product_name": product.name, "cost_price": cost_price}, summary)
 
 
+def plan_set_min_stock(db: Session, shop_id: int, product_name: str, min_stock_level: int):
+    if min_stock_level is None or int(min_stock_level) < 0:
+        return {"success": False, "message": "Minimum stock must be 0 or more."}
+    min_stock_level = int(min_stock_level)
+    product, match_type, suggestions = tools.find_product(db, product_name, shop_id)
+    if not product:
+        return {"success": False, "message": f"No product matching '{product_name}'.", "suggestions": suggestions}
+    if match_type in ("fuzzy", "ambiguous"):
+        return {"success": False, "needs_clarification": True, "suggestions": suggestions,
+                "message": f"'{product_name}' looks like: {', '.join(suggestions)}. Ask again with the exact name."}
+    old = product.min_stock_level
+    summary = f"Change {product.name}'s minimum stock from {old} to {min_stock_level}."
+    return _new(db, shop_id, "set_min_stock", {"product_name": product.name, "min_stock_level": min_stock_level}, summary)
+
+
 def plan_order(db: Session, shop_id: int, product_name: str, quantity: int, wholesaler_name: str = None):
     if quantity is None or int(quantity) < 1:
         return {"success": False, "message": "Quantity must be at least 1."}
@@ -210,6 +225,17 @@ def _exec_set_price(db, shop_id, p):
             "message": f"{product.name}'s price is now \u20b9{p['new_price']:g}."}
 
 
+def _exec_set_min_stock(db, shop_id, p):
+    product, match_type, _ = tools.find_product(db, p["product_name"], shop_id)
+    if not product:
+        return {"success": False, "message": f"{p['product_name']} no longer exists."}
+    old = product.min_stock_level
+    product.min_stock_level = p["min_stock_level"]
+    db.commit()
+    return {"success": True, "product": product.name, "old_min_stock": old, "new_min_stock": p["min_stock_level"],
+            "message": f"{product.name}'s minimum stock is now {p['min_stock_level']}."}
+
+
 def _exec_bulk_order(db, shop_id, p):
     from . import bulk_order
     return bulk_order.execute(db, shop_id, p)
@@ -254,7 +280,7 @@ def _exec_order(db, shop_id, p):
 
 EXECUTORS = {"sale": _exec_sale, "delete": _exec_delete, "rename": _exec_rename, "order": _exec_order,
              "set_price": _exec_set_price, "set_cost_price": _exec_set_cost_price,
-             "bulk_order": _exec_bulk_order}
+             "bulk_order": _exec_bulk_order, "set_min_stock": _exec_set_min_stock}
 
 
 def confirm_action(db: Session, shop_id: int, action_id: str):

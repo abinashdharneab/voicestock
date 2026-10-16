@@ -604,6 +604,17 @@ def build_tools_for_shop(shop_id: int):
             db.close()
 
     @strands_tool
+    def set_min_stock(product_name: str, min_stock_level: int) -> dict:
+        """Plan changing a product's minimum stock level - the number used to decide if it's 'low stock'. Read
+        the old and new minimum to the owner, then call confirm_action with the returned action_id ONLY after a
+        clear yes."""
+        db = SessionLocal()
+        try:
+            return confirm.plan_set_min_stock(db, shop_id, product_name, min_stock_level)
+        finally:
+            db.close()
+
+    @strands_tool
     def set_price(product_name: str, new_price: float) -> dict:
         """Plan changing a product's selling price. Read the old and new price to the owner, then call
         confirm_action with the returned action_id ONLY after they clearly say yes."""
@@ -642,7 +653,8 @@ def build_tools_for_shop(shop_id: int):
             delete_item, fix_product_name, order_from_wholesaler, find_wholesaler,
             plan_restock, confirm_restock, morning_brief, list_wholesalers, wholesaler_items,
             confirm_action, cancel_action, product_margin, profit_report, top_sellers,
-            low_margin_items, set_price, set_cost_price, order_multiple, get_current_datetime]
+            low_margin_items, set_price, set_cost_price, order_multiple, get_current_datetime,
+            set_min_stock]
 
 
 @app.websocket("/ws/voice")
@@ -657,7 +669,7 @@ async def voice_websocket(websocket: WebSocket, account_id: int = Query(...)):
     agent = BidiAgent(
         model=model,
         tools=build_tools_for_shop(account_id),
-        system_prompt=SYSTEM_PROMPT + _language_hint(_vs["voice"]["language"]) + " " + _now_ist_line(),
+        system_prompt=(SYSTEM_PROMPT + " " + _now_ist_line() + _language_hint(_vs["voice"]["language"])),
     )
 
     ws_input = WebSocketInput(websocket, language=_vs["voice"]["language"])
@@ -1080,9 +1092,14 @@ def _now_ist_line() -> str:
 
 def _language_hint(lang: str) -> str:
     if lang == "en":
-        return " Always reply in English."
+        return (" The owner has chosen English as the reply language. Reply in English in EVERY single turn for "
+                "this whole conversation, even if the owner speaks Hindi to you or mentions a Hindi product name - "
+                "translate or transliterate as needed, but your own words are always English, never Hindi or "
+                "Hinglish. This does not change partway through a long conversation.")
     if lang == "hi":
-        return " Always reply in Hindi or Hinglish, the way a shopkeeper in India would speak."
+        return (" The owner has chosen Hindi as the reply language. Reply in Hindi or Hinglish, the way a "
+                "shopkeeper in India would speak, in EVERY single turn for this whole conversation, even if the "
+                "owner speaks English to you. This does not change partway through a long conversation.")
     return ""
 
 

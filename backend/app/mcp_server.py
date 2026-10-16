@@ -275,6 +275,12 @@ def build_mcp():
         return _with_db(lambda db, s: business.low_margin_items(db, s))
 
     @mcp.tool()
+    def set_min_stock(product_name: str, min_stock_level: int) -> dict:
+        """Plan changing a product's minimum stock level - the number used to decide if it's 'low stock'. Read
+        the old and new minimum, then call confirm_action with the returned action_id ONLY after a clear yes."""
+        return _with_db(lambda db, s: confirm.plan_set_min_stock(db, s, product_name, min_stock_level))
+
+    @mcp.tool()
     def set_price(product_name: str, new_price: float) -> dict:
         """Plan changing a product's selling price. Read the old and new price to the owner, then call
         confirm_action with the returned action_id ONLY after a clear yes."""
