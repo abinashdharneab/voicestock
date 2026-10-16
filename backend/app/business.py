@@ -140,18 +140,39 @@ def top_sellers(db: Session, shop_id: int, days: int = 7, limit: int = 5, by: st
 
 def low_margin_items(db: Session, shop_id: int, threshold_pct: float = 15.0):
     products = db.query(models.Product).filter(models.Product.shop_id == shop_id).all()
-    flagged = []
+    flagged, missing_price, missing_cost = [], 0, 0
+    evaluated = 0
     for p in products:
-        cost = _cost_of(p)
-        if not cost or not p.price_per_unit:
+        if not p.price_per_unit:
+            missing_price += 1
             continue
+        cost = _cost_of(p)
+        if not cost:
+            missing_cost += 1
+            continue
+        evaluated += 1
         margin_pct = round(((p.price_per_unit - cost) / p.price_per_unit) * 100, 1)
         if margin_pct < threshold_pct:
             flagged.append({"product": p.name, "selling_price": p.price_per_unit, "cost_price": cost,
                             "margin_percent": margin_pct})
     flagged.sort(key=lambda e: e["margin_percent"])
-    message = (f"{len(flagged)} product(s) below {threshold_pct:g}% margin: " +
-               ", ".join(f"{e['product']} ({e['margin_percent']:g}%)" for e in flagged[:5])) \
-        if flagged else f"Nothing is below {threshold_pct:g}% margin."
-    return {"success": True, "threshold_percent": threshold_pct, "count": len(flagged),
-            "items": flagged[:10], "message": message}
+
+    if evaluated == 0:
+        message = (f"I can't check margins yet \u2014 none of your {len(products)} product(s) have both a selling "
+                   f"price and a cost price saved. Say 'set price of <item>' for a selling price; cost price is "
+                   f"saved when you add stock and mention what it cost.")
+    else:
+        message = (f"{len(flagged)} of {evaluated} checked product(s) are below {threshold_pct:g}% margin: " +
+                   ", ".join(f"{e['product']} ({e['margin_percent']:g}%)" for e in flagged[:5])) if flagged \
+            else f"None of the {evaluated} product(s) I could check are below {threshold_pct:g}% margin."
+        gaps = []
+        if missing_price:
+            gaps.append(f"{missing_price} missing a selling price")
+        if missing_cost:
+            gaps.append(f"{missing_cost} missing a cost price")
+        if gaps:
+            message += f" ({' and '.join(gaps)}, so margin is unknown for those \u2014 not necessarily fine.)"
+
+    return {"success": True, "threshold_percent": threshold_pct, "total_products": len(products),
+            "evaluated": evaluated, "missing_selling_price": missing_price, "missing_cost_price": missing_cost,
+            "count": len(flagged), "items": flagged[:10], "message": message}

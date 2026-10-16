@@ -176,18 +176,17 @@ def add_stock(db: Session, product_name: str, quantity: int, shop_id: int, expir
 
     if existing is None:
         clean = _clean_name(product_name)
+        # no longer auto-fills from the shared library - every shop's photo stays its own
         existing = models.Product(
             name=clean,
             unit=unit,
             shop_id=shop_id,
-            image_url=library_lookup(db, clean),
+            image_url=None,
         )
         db.add(existing)
         db.commit()
         db.refresh(existing)
         created_new = True
-    elif not existing.image_url:
-        existing.image_url = library_lookup(db, existing.name)
 
     parsed_expiry = None
     if expiry_date:
@@ -341,8 +340,6 @@ def rename_product(db: Session, product_name: str, new_name: str, shop_id: int, 
         return {"success": True, "merged": True, "old_name": old_name, "final_name": existing_target.name}
 
     product.name = clean_new
-    if not product.image_url:
-        product.image_url = library_lookup(db, clean_new)
     db.commit()
 
     return {

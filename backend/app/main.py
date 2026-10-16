@@ -5,16 +5,20 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import Optional
 import base64
+import json
 import os
 import shutil
 import hmac
 import hashlib
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from .database import Base, engine, get_db, SessionLocal
 from . import models, tools
 from . import restock
 from . import nearby
+from . import confirm
+from . import bulk_order
+from . import business
 from .mcp_server import build_mcp, MCPPathFix
 from .bedrock_agent import chat_with_agent
 
@@ -134,11 +138,8 @@ def signup(payload: AuthRequest, db: Session = Depends(get_db)):
     Model = ROLE_TABLE.get(payload.role)
     if not Model:
         raise HTTPException(status_code=400, detail="Invalid role.")
-    existing = db.query(Model).filter(Model.name == payload.name).first()
-    if existing:
-        raise HTTPException(status_code=400, detail="This name is already taken. Choose another.")
-    if len(payload.pin) != 4 or not payload.pin.isdigit():
-        raise HTTPException(status_code=400, detail="PIN must be exactly 4 digits.")
+    if not (8 <= len(payload.pin) <= 20 and payload.pin.isdigit()):
+        raise HTTPException(status_code=400, detail="Password must be 8 to 20 digits.")
     account = Model(name=payload.name, pin=payload.pin, area=payload.area)
     db.add(account)
     db.commit()
@@ -151,9 +152,10 @@ def login(payload: AuthRequest, db: Session = Depends(get_db)):
     Model = ROLE_TABLE.get(payload.role)
     if not Model:
         raise HTTPException(status_code=400, detail="Invalid role.")
-    account = db.query(Model).filter(Model.name == payload.name).first()
-    if not account or account.pin != payload.pin:
-        raise HTTPException(status_code=401, detail="Wrong name or PIN.")
+    candidates = db.query(Model).filter(Model.name == payload.name).all()
+    account = next((a for a in candidates if a.pin == payload.pin), None)
+    if not account:
+        raise HTTPException(status_code=401, detail="Wrong name or password.")
     return {"account_id": account.id, "name": account.name, "role": payload.role}
 
 
@@ -248,6 +250,15 @@ def api_record_sale(payload: RecordSaleRequest, db: Session = Depends(get_db)):
 SYSTEM_PROMPT = (
     "You are VoiceStock, a helpful voice assistant for a small shop owner in India. "
     "The owner may speak Hindi, Hinglish or English, and pronunciation may be unclear. "
+    "You are not just a stock clerk: think and speak like an experienced business manager who wants this shop to "
+    "grow. When it is naturally useful, mention margin, profit, or a slow/fast seller without being asked - briefly, "
+    "one line, not a lecture. If the owner asks something open-ended like 'how is my shop doing' or 'any advice', "
+    "pull together low stock, a quick profit_report, and low_margin_items into a short, practical answer, like a "
+    "manager giving a quick update, not a dump of numbers. "
+    "Never think out loud and never narrate your reasoning, your plan, or which tool you are about to use. "
+    "Decide silently, call the tool, then say ONLY the short final answer in one sentence - nothing about how "
+    "you got there. For example, after adding stock say just 'Maggi ke 2 packet jod diye, ab 22 hain.' and "
+    "nothing more. "
     "Rules: "
     "1) Always use the tools for stock questions and never guess numbers. "
     "2) Always pass product names to tools in English letters using the standard brand spelling, "
@@ -259,11 +270,13 @@ SYSTEM_PROMPT = (
     "5) If a tool result says needs_clarification, ask the owner short: did you mean the suggested product, or is it a new product? "
     "If they say it is new, call add_stock again with confirm_new=true. "
     "6) If a product is not found, say so and offer the closest suggestions. "
-    "7) To delete a product, call delete_item. If it needs_clarification, read out the suggested product name and ask the owner "
-    "to confirm before calling delete_item again with confirm=true. Deleting a product removes all its stock and sale history, "
-    "so never delete without the owner clearly confirming the exact product first. "
-    "8) To fix a spelling mistake or rename a product, call fix_product_name with the current name and the corrected name. "
-    "If it needs_clarification, confirm the exact product with the owner first, then call it again with confirm=true. "
+    "7) record_sale, delete_item, fix_product_name and order_from_wholesaler only PLAN the action now; they return an "
+    "action_id and do NOT change anything yet. Read the plan's summary to the owner in one short sentence and ask if you "
+    "should go ahead. Call confirm_action with that EXACT action_id ONLY after the owner clearly says yes. If they say no "
+    "or change their mind, call cancel_action instead. Never call confirm_action for a plan the owner has not heard, and "
+    "never invent or reuse an action_id from earlier in the conversation. "
+    "8) If a plan's result says needs_clarification, read out the suggested product name and ask the owner to confirm the "
+    "exact product, then call the same plan tool again with that exact name. "
     "9) When the owner asks to restock, reorder what is low, or 'order everything that is finished', call plan_restock "
     "(pass budget only if they gave a rupee limit). Tell them the plan in one or two short sentences: how many items, "
     "from how many wholesalers, the total, and anything that could not be included. Ask if you should place the orders. "
@@ -276,8 +289,24 @@ SYSTEM_PROMPT = (
     "many more there are and offer to continue. "
     "12) When the owner then names one wholesaler and asks what they sell, call wholesaler_items with that name and "
     "read the items with prices; for a long list read the first five and offer more. If the name is ambiguous, ask which. "
-    "13) To order from a particular wholesaler, tell the owner the wholesaler, item, quantity and total price, and call "
-    "order_from_wholesaler with wholesaler_name only after a clear yes. Without a named wholesaler, order the same way. "
+    "13) To order from a particular wholesaler, call order_from_wholesaler with wholesaler_name to get a plan with the "
+    "total price, then follow rule 7 to confirm it. Without a named wholesaler, plan the same way with the cheapest one. "
+    "15) product_margin(product) tells the selling price, cost price, profit per unit and margin percent for one "
+    "item. profit_report(days) gives revenue and profit for a period (default 30 days); mention if some products "
+    "have no cost price saved, since that part of the profit is then unknown. top_sellers(days, by) shows what is "
+    "selling best, by quantity or revenue. low_margin_items() flags products selling for too little over their "
+    "cost; suggest the owner consider raising those prices. Its result also says how many products it could "
+    "NOT check (no selling price, or no cost price saved) - always mention that honestly if it is more than zero. "
+    "A count of 0 flagged items means 0 out of whatever it COULD check, not necessarily that everything is fine. "
+    "16) To change a selling price, call set_price with the product and new rupee amount - this only PLANS it, "
+    "same as rule 7: read the old and new price, then call confirm_action only after a clear yes. "
+    "17) If the owner states a cost price directly ('cost price is 19 rupees', 'it costs me 19'), call "
+    "set_cost_price - this applies to all current stock of that product, not just new stock. It is separate from "
+    "set_price: if the owner gives both a selling price and a cost price in the same sentence, plan and confirm "
+    "them one after another (two short confirmations), not as one action. "
+    "18) When the owner wants to order TWO OR MORE different products at once, call order_multiple with all of "
+    "them together - never call order_from_wholesaler several times in a row for this. Read the wholesaler "
+    "breakdown and total, then confirm_action only after a clear yes. "
     "14) The microphone can pick up customers, friends and background talk. Only act on clear commands from the owner. "
     "If what you heard sounds like casual conversation (food, plans, chatting with a customer) or is not about the shop, "
     "do NOT call any tool and do not start a conversation: say at most a few words such as 'Sorry, did you need something?'. "
@@ -290,8 +319,9 @@ SYSTEM_PROMPT = (
 class WebSocketInput:
     """Reads audio chunks sent by the browser over the WebSocket."""
 
-    def __init__(self, websocket: WebSocket):
+    def __init__(self, websocket: WebSocket, language: str = "auto"):
         self.websocket = websocket
+        self.language = language
 
     async def start(self, agent):
         pass
@@ -300,8 +330,34 @@ class WebSocketInput:
         pass
 
     async def __call__(self):
-        data = await self.websocket.receive_bytes()
-        return AudioDelta(format="pcm", source={"bytes": data})
+        while True:
+            msg = await self.websocket.receive()
+            data = msg.get("bytes")
+            if data is not None:
+                return AudioDelta(format="pcm", source={"bytes": data})
+            text = msg.get("text")
+            if not text:
+                continue
+            try:
+                payload = json.loads(text)
+            except Exception:
+                continue
+            if payload.get("type") != "wake_greet":
+                continue
+            try:
+                from strands.types.content import TextBlock
+                name = str(payload.get("name") or "").strip()[:40]
+                who = f" Their name is {name} - weave it in naturally sometimes, not every single time." if name else ""
+                lang = {"en": "in English", "hi": "in Hindi or Hinglish, the way a shopkeeper would speak"}.get(
+                    self.language, "in whichever language fits - Hindi, Hinglish or English")
+                return TextBlock(
+                    "[The owner just said the wake phrase and is waiting, before saying anything else. Say ONLY "
+                    "one very short line acknowledging you're listening, " + lang + "." + who +
+                    " Make up your own natural wording each time - do not reuse the same exact sentence you said "
+                    "last time. Call no tool. Say nothing else - just that one short line.]")
+            except Exception as e:
+                print(f"wake_greet unavailable, skipping: {e}")
+                continue
 
 
 class WebSocketOutput:
@@ -382,41 +438,70 @@ def build_tools_for_shop(shop_id: int):
 
     @strands_tool
     def record_sale(product_name: str, quantity: int, bill_id: str = None) -> dict:
-        """Record a sale, reducing stock."""
+        """Plan recording a sale (reduces stock). Tell the owner the product, quantity and total, then call
+        confirm_action with the returned action_id ONLY after they clearly say yes."""
         db = SessionLocal()
         try:
-            return tools.record_sale(db, product_name, quantity, shop_id, bill_id)
+            return confirm.plan_sale(db, shop_id, product_name, quantity, bill_id)
         finally:
             db.close()
 
     @strands_tool
-    def delete_item(product_name: str, confirm: bool = False) -> dict:
-        """Delete a product entirely, including its stock and sale history."""
+    def delete_item(product_name: str) -> dict:
+        """Plan deleting a product (removes all its stock and sale history). Read the warning to the owner and
+        call confirm_action with the returned action_id ONLY after they clearly say yes. This cannot be undone."""
         db = SessionLocal()
         try:
-            return tools.delete_product(db, product_name, shop_id, confirm)
+            return confirm.plan_delete(db, shop_id, product_name)
         finally:
             db.close()
 
     @strands_tool
-    def fix_product_name(product_name: str, new_name: str, confirm: bool = False) -> dict:
-        """Rename a product, e.g. to fix a spelling mistake."""
+    def fix_product_name(product_name: str, new_name: str) -> dict:
+        """Plan renaming a product, e.g. to fix a spelling mistake. Confirm the old and new name with the owner,
+        then call confirm_action with the returned action_id ONLY after they clearly say yes."""
         db = SessionLocal()
         try:
-            return tools.rename_product(db, product_name, new_name, shop_id, confirm)
+            return confirm.plan_rename(db, shop_id, product_name, new_name)
         finally:
             db.close()
 
     @strands_tool
     def order_from_wholesaler(product_name: str, quantity: int, wholesaler_name: str = None) -> dict:
-        """Place an order with a wholesaler. If the owner named a wholesaler, pass wholesaler_name to order from
-        exactly that one. Without it, the cheapest wholesaler with stock is used. Only call this after the owner
-        has clearly agreed to the wholesaler, quantity and total. Not for adding stock manually."""
+        """Plan an order with a wholesaler. If the owner named a wholesaler, pass wholesaler_name to order from
+        exactly that one; without it, the cheapest wholesaler with stock is used. Tell the owner the wholesaler,
+        quantity and total, then call confirm_action with the returned action_id ONLY after a clear yes."""
         db = SessionLocal()
         try:
-            if wholesaler_name:
-                return nearby.order_from_specific(db, shop_id, wholesaler_name, product_name, quantity)
-            return tools.place_wholesale_order(db, shop_id, product_name, quantity)
+            return confirm.plan_order(db, shop_id, product_name, quantity, wholesaler_name)
+        finally:
+            db.close()
+
+    @strands_tool
+    def get_current_datetime() -> dict:
+        """The current date and time (India, IST). Use this whenever exact 'today', 'tomorrow', or a precise
+        days-until-expiry count matters, rather than assuming."""
+        now = datetime.utcnow() + IST
+        return {"date": now.strftime("%Y-%m-%d"), "time": now.strftime("%H:%M"), "day_of_week": now.strftime("%A"),
+                "message": _now_ist_line()}
+
+    @strands_tool
+    def confirm_action(action_id: str) -> dict:
+        """Carry out a previously planned action (sale, delete, rename, or wholesaler order) using the action_id
+        it returned. Call this ONLY after the owner clearly said yes to what you read out. Safe to call twice:
+        it never repeats an action."""
+        db = SessionLocal()
+        try:
+            return confirm.confirm_action(db, shop_id, action_id)
+        finally:
+            db.close()
+
+    @strands_tool
+    def cancel_action(action_id: str) -> dict:
+        """Cancel a previously planned action the owner said no to, or changed their mind about."""
+        db = SessionLocal()
+        try:
+            return confirm.cancel_action(db, shop_id, action_id)
         finally:
             db.close()
 
@@ -480,9 +565,84 @@ def build_tools_for_shop(shop_id: int):
         finally:
             db.close()
 
+    @strands_tool
+    def product_margin(product_name: str) -> dict:
+        """Selling price, cost price, profit per unit and margin percent for one product, plus how much profit is
+        sitting in current stock. Use when the owner asks about margin, profit, or 'is this worth selling'."""
+        db = SessionLocal()
+        try:
+            return business.product_margin(db, shop_id, product_name)
+        finally:
+            db.close()
+
+    @strands_tool
+    def profit_report(days: int = 30) -> dict:
+        """Revenue and profit for the last N days (default 30), with the top items by profit. Profit is partial
+        if some products have no cost price saved - say so if the result mentions it."""
+        db = SessionLocal()
+        try:
+            return business.profit_report(db, shop_id, days)
+        finally:
+            db.close()
+
+    @strands_tool
+    def top_sellers(days: int = 7, by: str = "quantity") -> dict:
+        """What is selling best over the last N days (default 7), by 'quantity' or 'revenue'."""
+        db = SessionLocal()
+        try:
+            return business.top_sellers(db, shop_id, days, by=by)
+        finally:
+            db.close()
+
+    @strands_tool
+    def low_margin_items() -> dict:
+        """Products selling for not much over their cost price (under 15% margin), worth a price review."""
+        db = SessionLocal()
+        try:
+            return business.low_margin_items(db, shop_id)
+        finally:
+            db.close()
+
+    @strands_tool
+    def set_price(product_name: str, new_price: float) -> dict:
+        """Plan changing a product's selling price. Read the old and new price to the owner, then call
+        confirm_action with the returned action_id ONLY after they clearly say yes."""
+        db = SessionLocal()
+        try:
+            return confirm.plan_set_price(db, shop_id, product_name, new_price)
+        finally:
+            db.close()
+
+    @strands_tool
+    def order_multiple(items: list) -> dict:
+        """Plan ordering SEVERAL different products from wholesalers in one go - use this instead of
+        order_from_wholesaler whenever the owner names more than one item at once (e.g. '10 Milk, 5 Maida, 20
+        Aloo'). Pass items as a list of objects, each with product_name and quantity. This picks the fewest
+        wholesalers needed (nearest first when there is a choice) and gives one combined total. Read the
+        per-wholesaler breakdown and total to the owner, then call confirm_action with the returned action_id
+        ONLY after a clear yes."""
+        db = SessionLocal()
+        try:
+            return bulk_order.plan(db, shop_id, items)
+        finally:
+            db.close()
+
+    @strands_tool
+    def set_cost_price(product_name: str, cost_price: float) -> dict:
+        """Plan setting what a product costs (its cost price), applied to all its current stock - not only new
+        stock. Use this when the owner states a cost price directly, not through add_stock. Read the summary to
+        the owner, then call confirm_action with the returned action_id ONLY after a clear yes."""
+        db = SessionLocal()
+        try:
+            return confirm.plan_set_cost_price(db, shop_id, product_name, cost_price)
+        finally:
+            db.close()
+
     return [list_all_items, check_item, get_expiring_items, get_low_stock, add_stock, record_sale,
             delete_item, fix_product_name, order_from_wholesaler, find_wholesaler,
-            plan_restock, confirm_restock, morning_brief, list_wholesalers, wholesaler_items]
+            plan_restock, confirm_restock, morning_brief, list_wholesalers, wholesaler_items,
+            confirm_action, cancel_action, product_margin, profit_report, top_sellers,
+            low_margin_items, set_price, set_cost_price, order_multiple, get_current_datetime]
 
 
 @app.websocket("/ws/voice")
@@ -497,10 +657,10 @@ async def voice_websocket(websocket: WebSocket, account_id: int = Query(...)):
     agent = BidiAgent(
         model=model,
         tools=build_tools_for_shop(account_id),
-        system_prompt=SYSTEM_PROMPT + _language_hint(_vs["voice"]["language"]),
+        system_prompt=SYSTEM_PROMPT + _language_hint(_vs["voice"]["language"]) + " " + _now_ist_line(),
     )
 
-    ws_input = WebSocketInput(websocket)
+    ws_input = WebSocketInput(websocket, language=_vs["voice"]["language"])
     ws_output = WebSocketOutput(websocket, account_id)
 
     try:
@@ -910,6 +1070,14 @@ def _load_settings_for(shop_id: int) -> dict:
         db.close()
 
 
+IST = timedelta(hours=5, minutes=30)
+
+
+def _now_ist_line() -> str:
+    now = datetime.utcnow() + IST
+    return f"Right now it is {now.strftime('%A, %d %B %Y, %I:%M %p')} IST."
+
+
 def _language_hint(lang: str) -> str:
     if lang == "en":
         return " Always reply in English."
@@ -960,9 +1128,6 @@ def update_profile(payload: ProfileUpdate, account_id: int = Query(...), db: Ses
         name = payload.name.strip()
         if not (1 <= len(name) <= 40):
             raise HTTPException(status_code=400, detail="Name must be 1 to 40 characters.")
-        clash = db.query(models.Shop).filter(models.Shop.name == name, models.Shop.id != account_id).first()
-        if clash:
-            raise HTTPException(status_code=400, detail="This name is already taken. Choose another.")
         shop.name = name
 
     if payload.email is not None:
@@ -1023,9 +1188,9 @@ def change_pin(payload: ChangePinRequest, account_id: int = Query(...), db: Sess
     if not shop:
         raise HTTPException(status_code=404, detail="Account not found")
     if shop.pin != payload.current_pin:
-        raise HTTPException(status_code=401, detail="Current PIN is wrong.")
-    if len(payload.new_pin) != 4 or not payload.new_pin.isdigit():
-        raise HTTPException(status_code=400, detail="New PIN must be exactly 4 digits.")
+        raise HTTPException(status_code=401, detail="Current password is wrong.")
+    if not (8 <= len(payload.new_pin) <= 20 and payload.new_pin.isdigit()):
+        raise HTTPException(status_code=400, detail="New password must be 8 to 20 digits.")
     if payload.new_pin == payload.current_pin:
         raise HTTPException(status_code=400, detail="New PIN must be different from the current one.")
     shop.pin = payload.new_pin

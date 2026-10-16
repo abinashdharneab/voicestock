@@ -17,12 +17,15 @@ import hmac
 import os
 import secrets
 from contextlib import asynccontextmanager
+from datetime import datetime, timedelta
 from pathlib import Path
+
+IST = timedelta(hours=5, minutes=30)
 
 from mcp.server.fastmcp import FastMCP
 from mcp.server.transport_security import TransportSecuritySettings
 
-from . import models, nearby, restock, tools
+from . import models, nearby, restock, tools, confirm, business, bulk_order
 from .database import SessionLocal
 
 PUBLIC_HOST = os.environ.get("VOICESTOCK_PUBLIC_HOST", "voicestock-abinash.duckdns.org")
@@ -123,7 +126,15 @@ def build_mcp():
             "VoiceStock helps an Indian shop owner manage stock by voice. Always use the tools for stock "
             "numbers; never guess. Product names are English brand spellings (Maggi, not मैगी). "
             "For restocking: call plan_restock, read the plan to the owner in one or two sentences, and call "
-            "confirm_restock ONLY after the owner clearly says yes. Never confirm a plan the owner has not heard."),
+            "confirm_restock ONLY after the owner clearly says yes. Never confirm a plan the owner has not heard. "
+            "record_sale, delete_item, fix_product_name, order_from_wholesaler and set_price only PLAN now and return "
+            "an action_id; nothing changes until confirm_action is called with that EXACT action_id after a clear yes. "
+            "If the owner says no, call cancel_action instead. Never reuse an action_id from earlier. "
+            "You are not just a stock clerk: think like an experienced business manager. Use product_margin, "
+            "profit_report, top_sellers and low_margin_items on your own when relevant, not only when asked word "
+            "for word, and keep it to one short practical line, not a dump of numbers. low_margin_items returning "
+            "0 flagged items means 0 out of whatever it could check, not necessarily that everything is fine - "
+            "always mention if it says products were skipped for missing price or cost."),
         stateless_http=True, json_response=True, streamable_http_path="/",
         transport_security=TransportSecuritySettings(
             enable_dns_rebinding_protection=True,
@@ -161,8 +172,21 @@ def build_mcp():
 
     @mcp.tool()
     def record_sale(product_name: str, quantity: int, bill_id: str = None) -> dict:
-        """Record a sale and reduce stock."""
-        return _with_db(lambda db, s: tools.record_sale(db, product_name, quantity, s, bill_id))
+        """Plan recording a sale (reduces stock). Tell the owner the product, quantity and total, then call
+        confirm_action with the returned action_id ONLY after they clearly say yes. Nothing changes until then."""
+        return _with_db(lambda db, s: confirm.plan_sale(db, s, product_name, quantity, bill_id))
+
+    @mcp.tool()
+    def delete_item(product_name: str) -> dict:
+        """Plan deleting a product entirely, including its stock and sale history. Read the warning to the owner
+        and call confirm_action with the returned action_id ONLY after a clear yes. This cannot be undone."""
+        return _with_db(lambda db, s: confirm.plan_delete(db, s, product_name))
+
+    @mcp.tool()
+    def fix_product_name(product_name: str, new_name: str) -> dict:
+        """Plan renaming a product, e.g. to fix a spelling mistake. Confirm the old and new name with the owner,
+        then call confirm_action with the returned action_id ONLY after a clear yes."""
+        return _with_db(lambda db, s: confirm.plan_rename(db, s, product_name, new_name))
 
     @mcp.tool()
     def find_wholesaler(product_name: str) -> dict:
@@ -186,13 +210,30 @@ def build_mcp():
 
     @mcp.tool()
     def order_from_wholesaler(product_name: str, quantity: int, wholesaler_name: str = None) -> dict:
-        """Place one order. With wholesaler_name it orders from that wholesaler; without it, from the cheapest one.
-        Tell the owner the wholesaler, quantity and total price and get a clear yes BEFORE calling this."""
-        def run(db, s):
-            if wholesaler_name:
-                return nearby.order_from_specific(db, s, wholesaler_name, product_name, quantity)
-            return tools.place_wholesale_order(db, s, product_name, quantity)
-        return _with_db(run)
+        """Plan an order with a wholesaler. With wholesaler_name it plans that wholesaler; without it, the cheapest
+        one. Tell the owner the wholesaler, quantity and total, then call confirm_action with the returned
+        action_id ONLY after a clear yes. Nothing changes until then."""
+        return _with_db(lambda db, s: confirm.plan_order(db, s, product_name, quantity, wholesaler_name))
+
+    @mcp.tool()
+    def get_current_datetime() -> dict:
+        """The current date and time (India, IST). Use whenever exact 'today', 'tomorrow', or a precise
+        days-until-expiry count matters, rather than assuming."""
+        now = datetime.utcnow() + IST
+        return {"date": now.strftime("%Y-%m-%d"), "time": now.strftime("%H:%M"), "day_of_week": now.strftime("%A"),
+                "message": f"Right now it is {now.strftime('%A, %d %B %Y, %I:%M %p')} IST."}
+
+    @mcp.tool()
+    def confirm_action(action_id: str) -> dict:
+        """Carry out a previously planned action (sale, delete, rename, or wholesaler order) using the action_id
+        it returned. Call ONLY after the owner clearly said yes to what you read out. Safe to call twice: it
+        never repeats an action."""
+        return _with_db(lambda db, s: confirm.confirm_action(db, s, action_id))
+
+    @mcp.tool()
+    def cancel_action(action_id: str) -> dict:
+        """Cancel a previously planned action the owner said no to, or changed their mind about."""
+        return _with_db(lambda db, s: confirm.cancel_action(db, s, action_id))
 
     @mcp.tool()
     def plan_restock(budget: float = None) -> dict:
@@ -210,6 +251,50 @@ def build_mcp():
     def morning_brief() -> dict:
         """Short daily summary: low stock, expiring soon, orders on the way and sales in the last 24 hours."""
         return _with_db(lambda db, s: restock.morning_brief(db, s))
+
+    @mcp.tool()
+    def product_margin(product_name: str) -> dict:
+        """Selling price, cost price, profit per unit and margin percent for one product, plus how much profit is
+        sitting in current stock."""
+        return _with_db(lambda db, s: business.product_margin(db, s, product_name))
+
+    @mcp.tool()
+    def profit_report(days: int = 30) -> dict:
+        """Revenue and profit for the last N days (default 30), with the top items by profit. Partial if some
+        products have no cost price saved."""
+        return _with_db(lambda db, s: business.profit_report(db, s, days))
+
+    @mcp.tool()
+    def top_sellers(days: int = 7, by: str = "quantity") -> dict:
+        """What is selling best over the last N days (default 7), by 'quantity' or 'revenue'."""
+        return _with_db(lambda db, s: business.top_sellers(db, s, days, by=by))
+
+    @mcp.tool()
+    def low_margin_items() -> dict:
+        """Products selling for not much over their cost price (under 15% margin), worth a price review."""
+        return _with_db(lambda db, s: business.low_margin_items(db, s))
+
+    @mcp.tool()
+    def set_price(product_name: str, new_price: float) -> dict:
+        """Plan changing a product's selling price. Read the old and new price to the owner, then call
+        confirm_action with the returned action_id ONLY after a clear yes."""
+        return _with_db(lambda db, s: confirm.plan_set_price(db, s, product_name, new_price))
+
+    @mcp.tool()
+    def order_multiple(items: list) -> dict:
+        """Plan ordering SEVERAL different products from wholesalers in one go - use instead of
+        order_from_wholesaler whenever more than one item is named at once. Pass items as a list of objects,
+        each with product_name and quantity. Picks the fewest wholesalers needed (nearest first when there is a
+        choice) and gives one combined total. Read the breakdown, then call confirm_action with the returned
+        action_id ONLY after a clear yes."""
+        return _with_db(lambda db, s: bulk_order.plan(db, s, items))
+
+    @mcp.tool()
+    def set_cost_price(product_name: str, cost_price: float) -> dict:
+        """Plan setting what a product costs (its cost price), applied to all its current stock - not only new
+        stock. Use when the owner states a cost price directly, not through add_stock. Read the summary, then
+        call confirm_action with the returned action_id ONLY after a clear yes."""
+        return _with_db(lambda db, s: confirm.plan_set_cost_price(db, s, product_name, cost_price))
 
     @mcp.tool()
     def my_orders(limit: int = 10) -> dict:
