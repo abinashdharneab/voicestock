@@ -125,6 +125,10 @@ def build_mcp():
         instructions=(
             "VoiceStock helps an Indian shop owner manage stock by voice. Always use the tools for stock "
             "numbers; never guess. Product names are English brand spellings (Maggi, not मैगी). "
+            "The SAME product name can only have one price and one stock count. If the owner describes a size "
+            "or price variant of something that may already exist, give it its own distinguishing name when "
+            "adding it (e.g. 'Maggi 5rs', 'Maggi 10rs') rather than reusing a name already used for a different "
+            "price or size. If a bare name matches more than one existing product, ask which one before acting. "
             "For restocking: call plan_restock, read the plan to the owner in one or two sentences, and call "
             "confirm_restock ONLY after the owner clearly says yes. Never confirm a plan the owner has not heard. "
             "record_sale, delete_item, fix_product_name, order_from_wholesaler and set_price only PLAN now and return "
