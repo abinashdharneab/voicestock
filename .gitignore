@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+venv/
+*.egg-info/
+
+# Environment / secrets
+.env
+.env.*
+*.pem
+.mcp_secret
+
+# Backups made while patching
+*.bak
+*.bak[0-9]*
+*.save
+
+# OS / editor
+.DS_Store
+Thumbs.db
